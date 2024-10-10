@@ -24,6 +24,7 @@ import {RUBRICS_QUERY_RESPONSE, RUBRIC_PREVIEW_QUERY_RESPONSE} from './fixtures'
 import {QueryProvider, queryClient} from '@canvas/query'
 import {ViewRubrics, type ViewRubricsProps} from '../index'
 import * as ViewRubricQueries from '../../../queries/ViewRubricQueries'
+import useManagedCourseSearchApi from '@canvas/direct-sharing/react/effects/useManagedCourseSearchApi'
 
 jest.mock('react-router', () => ({
   ...jest.requireActual('react-router'),
@@ -37,13 +38,14 @@ jest.mock('../../../queries/ViewRubricQueries', () => ({
   archiveRubric: () => archiveRubricMock,
   unarchiveRubric: () => unarchiveRubricMock,
 }))
+jest.mock('@canvas/direct-sharing/react/effects/useManagedCourseSearchApi')
 
 describe('ViewRubrics Tests', () => {
   const renderComponent = (props?: Partial<ViewRubricsProps>) => {
     return render(
       <QueryProvider>
         <BrowserRouter>
-          <ViewRubrics canManageRubrics={true} {...props} />
+          <ViewRubrics canManageRubrics={true} {...props} canImportExportRubrics={true} />
         </BrowserRouter>
       </QueryProvider>
     )
@@ -545,6 +547,16 @@ describe('ViewRubrics Tests', () => {
     })
   })
 
+  describe('canManageRubrics permissions is false', () => {
+    it('should not render popover or create button', () => {
+      queryClient.setQueryData(['accountRubrics-1'], RUBRICS_QUERY_RESPONSE)
+      const {queryByTestId} = renderComponent({canManageRubrics: false})
+
+      expect(queryByTestId('rubric-options-1-button')).toBeNull()
+      expect(queryByTestId('create-new-rubric-button')).not.toBeInTheDocument()
+    })
+  })
+
   describe('archiving and un-archiving rubrics', () => {
     afterEach(() => {
       jest.clearAllMocks()
@@ -641,16 +653,6 @@ describe('ViewRubrics Tests', () => {
       getByText('Saved').click()
       expect(getByTestId('rubric-row-2')).toHaveTextContent('Rubric 2')
       expect(getByTestId('saved-rubrics-panel').querySelectorAll('tr').length).toEqual(4)
-    })
-  })
-
-  describe('canManageRubrics permissions is false', () => {
-    it('should not render popover or create button', () => {
-      queryClient.setQueryData(['accountRubrics-1'], RUBRICS_QUERY_RESPONSE)
-      const {queryByTestId} = renderComponent({canManageRubrics: false})
-
-      expect(queryByTestId('rubric-options-1-button')).toBeNull()
-      expect(queryByTestId('create-new-rubric-button')).not.toBeInTheDocument()
     })
   })
 })

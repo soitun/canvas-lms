@@ -753,6 +753,24 @@
 #         }
 #       }
 #     }
+#
+# @model BasicUser
+#     {
+#       "id": "BasicUser",
+#       "properties": {
+#         "id": {
+#           "description": "The user's ID",
+#           "example": "123456",
+#           "type": "string"
+#         },
+#         "name": {
+#           "description": "The user's name",
+#           "example": "Dankey Kang",
+#           "type": "string"
+#         }
+#       }
+#     }
+#
 class AssignmentsApiController < ApplicationController
   before_action :require_context
   before_action :require_user_visibility, only: [:user_index]
@@ -955,16 +973,12 @@ class AssignmentsApiController < ApplicationController
                     assignment_json(target_assignment, @current_user, session)
                   end
     result_json["new_positions"] = { target_assignment.id => target_assignment.position }
-    Canvas::LiveEvents.quizzes_next_quiz_duplicated(
+    Canvas::LiveEvents.outcomes_retry_outcome_alignment_clone(
       {
         original_course_uuid: old_assignment.context.uuid,
         new_course_uuid: target_course.uuid,
         new_course_resource_link_id: target_course.lti_context_id,
         domain: target_course.root_account&.domain(ApplicationController.test_cluster_name),
-        new_course_name: target_course.name,
-        created_on_blueprint_sync: false,
-        resource_map_url: "",
-        remove_alignments: false,
         original_assignment_resource_link_id: old_assignment.lti_resource_link_id,
         new_assignment_resource_link_id: target_assignment.lti_resource_link_id,
         status: "outcome_alignment_cloning"
@@ -1121,6 +1135,22 @@ class AssignmentsApiController < ApplicationController
                         master_course_status: mc_status,
                         include_checkpoints: include_params.include?("checkpoints"))
       end
+    end
+  end
+
+  # @API List group members for a student on an assignment
+  # Returns student ids and names for the group.
+  #
+  # @example_request
+  #   curl https://<canvas>/api/v1/courses/1/assignments/1/users/1/group_members
+  #
+  # @returns [BasicUser]
+  def student_group_members
+    assignment = api_find(@context.active_assignments, params[:assignment_id])
+    if authorized_action(assignment, @current_user, :read)
+      student = @context.students.find(params[:user_id])
+      _, students = assignment.group_students(student)
+      render json: students.map { |user| { id: user.id.to_s, name: user.name } }
     end
   end
 
