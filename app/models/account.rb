@@ -79,6 +79,7 @@ class Account < ActiveRecord::Base
   has_many :developer_key_account_bindings, inverse_of: :account, dependent: :destroy
   has_many :lti_registration_account_bindings, class_name: "Lti::RegistrationAccountBinding", inverse_of: :account, dependent: :destroy
   has_many :lti_overlays, class_name: "Lti::Overlay", inverse_of: :account, dependent: :destroy
+  has_many :lti_overlay_versions, class_name: "Lti::OverlayVersion", inverse_of: :account, dependent: :destroy
   has_many :lti_notice_handlers, class_name: "Lti::NoticeHandler", inverse_of: :account, dependent: :destroy
   has_many :authentication_providers,
            -> { ordered },
@@ -132,6 +133,7 @@ class Account < ActiveRecord::Base
            class_name: "Lti::ResourceLink",
            dependent: :destroy
   has_many :lti_registrations, class_name: "Lti::Registration", inverse_of: :account, dependent: :destroy
+  has_many :block_editor_templates, class_name: "BlockEditorTemplate", as: :context, inverse_of: :context
   belongs_to :course_template, class_name: "Course", inverse_of: :templated_accounts
   belongs_to :grading_standard
 

@@ -218,6 +218,7 @@ class User < ActiveRecord::Base
            class_name: "UsageRights",
            dependent: :destroy
   has_many :gradebook_csvs, dependent: :destroy, class_name: "GradebookCSV"
+  has_many :block_editor_templates, class_name: "BlockEditorTemplate", as: :context, inverse_of: :context
 
   has_one :profile, class_name: "UserProfile"
 
@@ -259,6 +260,7 @@ class User < ActiveRecord::Base
            foreign_key: :updated_by_id,
            inverse_of: :updated_by
   has_many :lti_overlays, class_name: "Lti::Overlay", foreign_key: :updated_by_id, inverse_of: :updated_by
+  has_many :lti_overlay_versions, class_name: "Lti::OverlayVersion", inverse_of: :created_by, dependent: :destroy
 
   has_many :comment_bank_items, -> { where("workflow_state<>'deleted'") }
   has_many :microsoft_sync_partial_sync_changes, class_name: "MicrosoftSync::PartialSyncChange", dependent: :destroy, inverse_of: :user
