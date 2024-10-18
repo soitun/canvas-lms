@@ -381,6 +381,7 @@ class ApplicationController < ActionController::Base
     discussion_checkpoints
     speedgrader_studio_media_capture
     disallow_threaded_replies_fix_alert
+    consolidated_media_player
   ].freeze
   JS_ENV_ROOT_ACCOUNT_FEATURES = %i[
     product_tours
@@ -411,6 +412,7 @@ class ApplicationController < ActionController::Base
     rce_lite_enabled_speedgrader_comments
     lti_toggle_placements
     login_registration_ui_identity
+    lti_apps_page_instructors
   ].freeze
   JS_ENV_BRAND_ACCOUNT_FEATURES = [
     :embedded_release_notes
