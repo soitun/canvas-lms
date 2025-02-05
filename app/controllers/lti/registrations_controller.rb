@@ -109,13 +109,13 @@
 #         "created_by": {
 #           "description": "The user that created this registration. Not always present. If a string, this registration was created by Instructure.",
 #           "example": { "type": "User" },
-#           "type": ["string", "User"],
+#           "type": "string|User",
 #           "$ref": "User"
 #         },
 #         "updated_by": {
 #           "description": "The user that last updated this registration. Not always present. If a string, this registration was last updated by Instructure.",
 #           "example": { "type": "User" },
-#           "type": ["string", "User"],
+#           "type": "string|User",
 #           "$ref": "User"
 #         },
 #         "root_account_id": {
@@ -919,7 +919,7 @@ class Lti::RegistrationsController < ApplicationController
   #
   # @argument sort [String]
   #   The field to sort by. Choices are: name, nickname, lti_version, installed,
-  #   installed_by, updated_by, and on. Defaults to installed.
+  #   installed_by, updated_by, updated, and on. Defaults to installed.
   #
   # @argument dir [String, "asc"|"desc"]
   #   The order to sort the given column by. Defaults to desc.
@@ -1012,6 +1012,8 @@ class Lti::RegistrationsController < ApplicationController
           reg.created_by&.name&.downcase || ""
         when :updated_by
           reg.updated_by&.name&.downcase || ""
+        when :updated
+          reg.updated_at
         when :on
           reg.account_binding_for(@account)&.workflow_state || ""
         end
@@ -1224,7 +1226,6 @@ class Lti::RegistrationsController < ApplicationController
       Lti::ToolConfiguration.create!(
         developer_key: dk,
         lti_registration: registration,
-        settings: {},
         unified_tool_id: params[:unified_tool_id],
         **configuration_params
       )
@@ -1516,7 +1517,7 @@ class Lti::RegistrationsController < ApplicationController
     render_error("invalid_page", "page param should be an integer") unless params[:page].nil? || params[:page].to_i > 0
     render_error("invalid_dir", "dir param should be asc, desc, or empty") unless ["asc", "desc", nil].include?(params[:dir])
 
-    valid_sort_fields = %w[name nickname lti_version installed installed_by updated_by on]
+    valid_sort_fields = %w[name nickname lti_version installed installed_by updated_by updated on]
     render_error("invalid_sort", "#{params[:sort]} is not a valid field for sorting") unless [*valid_sort_fields, nil].include?(params[:sort])
   end
 
@@ -1569,7 +1570,7 @@ class Lti::RegistrationsController < ApplicationController
 
   def report_error(exception, code = nil)
     code ||= response_code_for_rescue(exception) if exception
-    InstStatsd::Statsd.increment("canvas.lti_registrations_controller.request_error", tags: { action: action_name, code: })
+    InstStatsd::Statsd.distributed_increment("canvas.lti_registrations_controller.request_error", tags: { action: action_name, code: })
   end
 
   def filter_registrations_by_search_query(registrations, search_terms)

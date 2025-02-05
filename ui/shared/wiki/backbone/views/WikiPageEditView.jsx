@@ -60,9 +60,7 @@ export default class WikiPageEditView extends ValidatedFormView {
     this.prototype.template = template
     this.prototype.className = 'form-horizontal edit-form validated-form-view'
     this.prototype.dontRenableAfterSaveSuccess = true
-    if (window.ENV.FEATURES?.selective_release_ui_api) {
-      this.prototype.disablingDfd = new $.Deferred()
-    }
+    this.prototype.disablingDfd = new $.Deferred()
     this.optionProperty('wiki_pages_path')
     this.optionProperty('WIKI_RIGHTS')
     this.optionProperty('PAGE_RIGHTS')
@@ -74,7 +72,6 @@ export default class WikiPageEditView extends ValidatedFormView {
     if (!this.PAGE_RIGHTS) this.PAGE_RIGHTS = {}
     this.queryParams = new URLSearchParams(window.location.search)
     this.enableAssignTo =
-      window.ENV.FEATURES?.selective_release_ui_api &&
       ENV.COURSE_ID != null &&
       ENV.WIKI_RIGHTS.manage_assign_to
     const redirect = () => {
@@ -156,6 +153,7 @@ export default class WikiPageEditView extends ValidatedFormView {
     if (
       (this.queryParams.get('editor') === 'block_editor' || window.ENV.text_editor_preference === "block_editor")
       && this.model.get('body') == null
+      && this.model.get('editor') !== 'rce'
     ) {
       json.edit_with_block_editor = true
     }
@@ -192,7 +190,7 @@ export default class WikiPageEditView extends ValidatedFormView {
   renderStudentTodoAtDate() {
     const elt = this.$studentTodoAtContainer[0]
     if (elt) {
-       
+
       return createRoot(elt).render(
         <DueDateCalendarPicker
           dateType="todo_date"
@@ -244,7 +242,9 @@ export default class WikiPageEditView extends ValidatedFormView {
 
     let chose_block_editor = window.location.href.split("?").filter((piece) => { return piece.indexOf('editor=block_editor') !== -1 }).length === 1
     if(!chose_block_editor){
-      chose_block_editor = window.ENV.text_editor_preference === "block_editor" && this.model.get('body') == null
+      chose_block_editor = window.ENV.text_editor_preference === "block_editor"
+        && this.model.get('body') == null
+        && this.model.get('editor') !== 'rce'
     }
 
     if ( (this.model.get('editor') === 'block_editor' && this.model.get('block_editor_attributes')) || chose_block_editor ) {

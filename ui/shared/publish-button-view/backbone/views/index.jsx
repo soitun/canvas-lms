@@ -26,6 +26,8 @@ import * as tz from '@instructure/moment-utils'
 import React from 'react'
 import {createRoot} from 'react-dom/client'
 import DelayedPublishDialog from '../../react/components/DelayedPublishDialog'
+import {Spinner} from '@instructure/ui-spinner'
+import {Mask, Overlay} from '@instructure/ui-overlays'
 
 const I18n = createI18nScope('publish_btn_module')
 
@@ -152,12 +154,44 @@ export default (function (superClass) {
     return this.$el.focus()
   }
 
+  PublishButton.prototype.loadingSpinnerRoot = {}
+
+  PublishButton.prototype.renderOverlayLoadingSpinner = function (loadingSpinnerStatus) {
+    const loadingSpinnerContainer = $('#overlay-loading-spinner')[0]
+    if (loadingSpinnerContainer){
+      const root = createRoot(loadingSpinnerContainer)
+      this.loadingSpinnerRoot["root"] = root
+      root.render(
+        <Overlay
+          open={true}
+          label={loadingSpinnerStatus}
+          shouldReturnFocus
+          shouldContainFocus
+        >
+          <Mask>
+            <Spinner
+              renderTitle={I18n.t('Loading')}
+              size="large"
+              margin="0 0 0 medium"
+            />
+          </Mask>
+        </Overlay>
+      )
+    }
+  }
+
+  PublishButton.prototype.hideOverlayLoadingSpinner = function () {
+    this.loadingSpinnerRoot["root"]?.unmount()
+    this.loadingSpinnerRoot["root"] = null
+  }
+
   // calling publish/unpublish on the model expects a deferred object
   PublishButton.prototype.publish = function (_event) {
     this.renderPublishing()
-    return this.model.publish().always(
+    return this.model.publish().done(
       (function (_this) {
         return function () {
+          _this.hideOverlayLoadingSpinner()
           let ref, ref1
           _this.trigger('publish')
           _this.enable()
@@ -186,6 +220,21 @@ export default (function (superClass) {
         }
       })(this),
     )
+    .fail(
+      (function (_this) {
+        return function (error) {
+          _this.hideOverlayLoadingSpinner()
+          if (error.status === 403) {
+            $.flashError(_this.model.disabledMessage())
+          } else {
+            $.flashError(I18n.t('This assignment has failed to publish'))
+          }
+          _this.disable()
+          _this.renderPublish()
+          return _this.setFocusToElement()
+        }
+      })(this),
+    )
   }
 
   PublishButton.prototype.unpublish = function (_event) {
@@ -195,6 +244,7 @@ export default (function (superClass) {
       .done(
         (function (_this) {
           return function () {
+            _this.hideOverlayLoadingSpinner()
             _this.trigger('unpublish')
             _this.disable()
             _this.render()
@@ -212,8 +262,11 @@ export default (function (superClass) {
       .fail(
         (function (_this) {
           return function (error) {
+            _this.hideOverlayLoadingSpinner()
             if (error.status === 403) {
               $.flashError(_this.model.disabledMessage())
+            }else {
+              $.flashError(I18n.t('This assignment has failed to unpublish'))
             }
             _this.disable()
             _this.renderPublished()
@@ -352,6 +405,7 @@ export default (function (superClass) {
 
   PublishButton.prototype.renderPublishing = function () {
     this.disable()
+    this.renderOverlayLoadingSpinner(I18n.t('Publishing in progress overlay'))
     const text = I18n.t('buttons.publishing', 'Publishing...')
     return this.renderState({
       text,
@@ -362,6 +416,7 @@ export default (function (superClass) {
 
   PublishButton.prototype.renderUnpublishing = function () {
     this.disable()
+    this.renderOverlayLoadingSpinner(I18n.t('Unpublishing in progress overlay'))
     const text = I18n.t('buttons.unpublishing', 'Unpublishing...')
     return this.renderState({
       text,

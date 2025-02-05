@@ -53,7 +53,7 @@ describe "Translation" do
     allow(DynamicSettings).to receive(:find).with(tree: :private).and_return({ "sagemaker.yml" => { "endpoint_name" => "translation-endpoint" }.to_yaml })
 
     # Mock statsd to allow it to receive what we expect
-    allow(InstStatsd::Statsd).to receive(:increment)
+    allow(InstStatsd::Statsd).to receive(:distributed_increment)
 
     # Mock the runtime and the credential provider
     @runtime_mock = instance_double(Aws::SageMakerRuntime::Client)
@@ -93,7 +93,7 @@ describe "Translation" do
 
     it "increments the translation metric" do
       Translation.create(tgt_lang: "en", text: "¿Dónde está el baño?")
-      expect(InstStatsd::Statsd).to have_received(:increment).with("translation.create.es.en")
+      expect(InstStatsd::Statsd).to have_received(:distributed_increment).with("translation.create.es.en")
     end
   end
 
@@ -121,7 +121,7 @@ describe "Translation" do
     it "uses the cache if key is present" do
       # Arrange
       @user.locale = "es"
-      allow(Canvas.redis).to receive(:get).with(["translated_languages", @user.locale].cache_key).and_return({ language: "languages" }.to_json)
+      allow(Rails.cache).to receive(:fetch).with(["translated_languages", @user.locale].cache_key).and_return({ "language" => "languages" })
 
       # Act
       resp = Translation.translated_languages(@user)
@@ -132,14 +132,14 @@ describe "Translation" do
 
     it "caches the translation results" do
       # Arrange
-      allow(Canvas.redis).to receive(:set)
+      allow(Rails.cache).to receive(:write)
       @user.locale = "es"
 
       # Act
       Translation.translated_languages(@user)
 
       # Assert
-      expect(Canvas.redis).to have_received(:set).exactly(1)
+      expect(Rails.cache).to have_received(:write).exactly(1)
     end
   end
 

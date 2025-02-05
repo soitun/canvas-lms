@@ -1094,17 +1094,25 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
 
       expect_error(result, "Group discussions cannot have checkpoints.")
     end
+
+    it "returns an error when attempting to add checkpoins to a discussion with student submissions" do
+      discussion_assignment = @course.assignments.create!(
+        title: "Topic 1",
+        submission_types: "discussion_topic"
+      )
+      student = student_in_course.user
+      topic = discussion_assignment.discussion_topic
+      topic.ensure_particular_submission(discussion_assignment, student, Time.zone.now)
+      result = run_mutation(id: topic.id, assignment: { forCheckpoints: true }, checkpoints: [
+                              { checkpointLabel: CheckpointLabels::REPLY_TO_TOPIC, dates: [{ type: "everyone", dueAt: @due_at1.iso8601 }], pointsPossible: 6 },
+                              { checkpointLabel: CheckpointLabels::REPLY_TO_ENTRY, dates: [{ type: "everyone", dueAt: @due_at2.iso8601 }], pointsPossible: 8, repliesRequired: 5 }
+                            ])
+
+      expect_error(result, "If there are submissions, checkpoints cannot be enabled.")
+    end
   end
 
-  context "with selective_release_ui_api flag ON" do
-    before do
-      Account.site_admin.enable_feature!(:selective_release_ui_api)
-    end
-
-    after do
-      Account.site_admin.disable_feature!(:selective_release_ui_api)
-    end
-
+  context "with selective release" do
     it "updates ungraded assignment overrides" do
       student1 = @course.enroll_student(User.create!, enrollment_state: "active").user
       student2 = @course.enroll_student(User.create!, enrollment_state: "active").user
@@ -1151,23 +1159,6 @@ RSpec.describe Mutations::UpdateDiscussionTopic do
       result = run_mutation(id: announcement1.id, specific_sections: "all")
       expect(result["errors"]).to be_nil
       expect(Announcement.last.is_section_specific).to be_falsy
-    end
-
-    it "does not update ungraded assignment overrides if flag is off" do
-      Account.site_admin.disable_feature!(:selective_release_ui_api)
-
-      student1 = @course.enroll_student(User.create!, enrollment_state: "active").user
-      student2 = @course.enroll_student(User.create!, enrollment_state: "active").user
-      @course.enroll_student(User.create!, enrollment_state: "active").user
-
-      ungraded_discussion_overrides = {
-        studentIds: [student1.id, student2.id]
-      }
-      result = run_mutation(id: @topic.id, ungraded_discussion_overrides:)
-      expect(result["errors"]).to be_nil
-
-      new_override = DiscussionTopic.last.active_assignment_overrides.first
-      expect(new_override).to be_nil
     end
   end
 

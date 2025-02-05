@@ -21,18 +21,20 @@ import formatMessage from '../format-message'
 import RCEWrapper from './RCEWrapper'
 import {EditorOptionsPropType, type ExternalToolsConfig, LtiToolsPropType} from './RCEWrapperProps'
 import {RCEVariant} from './RCEVariants'
-import editorLanguage from './editorLanguage'
+import {editorLanguage} from './editorLanguage'
 import normalizeLocale from './normalizeLocale'
 import wrapInitCb from './wrapInitCb'
 import tinyRCE from './tinyRCE'
 import getTranslations from '../getTranslations'
 import '@instructure/canvas-theme'
 import {Editor} from 'tinymce'
+// @ts-expect-error
+import generateId from 'format-message-generate-id/underscored_crc32'
 
 if (!process || !process.env || !process.env.BUILD_LOCALE) {
   formatMessage.setup({
     locale: 'en',
-    generateId: require('format-message-generate-id/underscored_crc32'),
+    generateId,
     missingTranslation: 'ignore',
   })
 }
@@ -76,7 +78,6 @@ const RCE = forwardRef<RCEWrapper, RCEPropTypes>(function RCE(props, rceRef) {
         setTranslations(true)
       })
       .catch(err => {
-        // eslint-disable-next-line no-console
         console.error('Failed loading the language file for', locale, '\n Cause:', err)
         setTranslations(false)
       })

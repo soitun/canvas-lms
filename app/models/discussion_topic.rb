@@ -104,6 +104,7 @@ class DiscussionTopic < ActiveRecord::Base
   belongs_to :user
   has_one :master_content_tag, class_name: "MasterCourses::MasterContentTag", inverse_of: :discussion_topic
   has_many :summaries, class_name: "DiscussionTopicSummary"
+  has_one :estimated_duration, dependent: :destroy, inverse_of: :discussion_topic
 
   validates_associated :discussion_topic_section_visibilities
   validates :context_id, :context_type, presence: true
@@ -2122,7 +2123,7 @@ class DiscussionTopic < ActiveRecord::Base
   def ungraded_discussion_overrides(current_user = nil)
     current_user ||= self.current_user
     return unless current_user
-    return nil if assignment.present? || context_type == "Group" || is_announcement || !Account.site_admin.feature_enabled?(:selective_release_ui_api)
+    return nil if assignment.present? || context_type == "Group" || is_announcement
 
     overrides = AssignmentOverrideApplicator.overrides_for_assignment_and_user(self, current_user)
 

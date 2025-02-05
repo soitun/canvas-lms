@@ -45,13 +45,13 @@ class Quizzes::Quiz < ActiveRecord::Base
   has_many :quiz_statistics, -> { order(:created_at) }, class_name: "Quizzes::QuizStatistics"
   has_many :attachments, as: :context, inverse_of: :context, dependent: :destroy
   has_many :quiz_regrades, class_name: "Quizzes::QuizRegrade"
-  has_many :quiz_student_visibilities
   belongs_to :context, polymorphic: [:course]
   belongs_to :assignment, inverse_of: :quiz, class_name: "AbstractAssignment"
   belongs_to :assignment_group
   belongs_to :root_account, class_name: "Account"
   has_many :ignores, as: :asset
   has_one :master_content_tag, class_name: "MasterCourses::MasterContentTag", inverse_of: :quiz
+  has_one :estimated_duration, dependent: :destroy, inverse_of: :quiz
 
   validates :description, length: { maximum: maximum_long_text_length, allow_blank: true }
   validates :title, length: { maximum: maximum_string_length, allow_nil: true }
@@ -68,6 +68,7 @@ class Quizzes::Quiz < ActiveRecord::Base
   }
   sanitize_field :description, CanvasSanitize::SANITIZE
   copy_authorized_links(:description) { [context, nil] }
+  validates_with HorizonValidators::QuizzesValidator, if: -> { context.is_a?(Course) && context.horizon_course? }
 
   before_save :generate_quiz_data_on_publish, if: :workflow_state_changed?
   before_save :build_assignment

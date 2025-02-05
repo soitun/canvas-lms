@@ -52,7 +52,7 @@ class Mutations::UpdateDiscussionTopic < Mutations::DiscussionBase
       discussion_topic.anonymous_state = (input[:anonymous_state] == "off") ? nil : input[:anonymous_state]
     end
 
-    if (!input.key?(:ungraded_discussion_overrides) && !Account.site_admin.feature_enabled?(:selective_release_ui_api)) || discussion_topic.is_announcement
+    if discussion_topic.is_announcement
       # TODO: deprecate discussion_topic_section_visibilities for assignment_overrides LX-1498
       set_sections(input[:specific_sections], discussion_topic)
       invalid_sections = verify_specific_section_visibilities(discussion_topic) || []
@@ -146,6 +146,7 @@ class Mutations::UpdateDiscussionTopic < Mutations::DiscussionBase
       # Assignment must be present to set checkpoints
       if discussion_topic.assignment && input[:checkpoints]&.count == DiscussionTopic::REQUIRED_CHECKPOINT_COUNT
         return validation_error(I18n.t("If checkpoints are defined, forCheckpoints: true must be provided to the discussion topic assignment.")) unless input.dig(:assignment, :for_checkpoints)
+        return validation_error(I18n.t("If there are submissions, checkpoints cannot be enabled.")) if input.dig(:assignment, :for_checkpoints) && discussion_topic.assignment.has_submitted_submissions?
 
         # on the case of changing an ungraded discussion to a graded, checkpointed discussion, at this stage
         # has_sub_assignments? returns true, but sub_assignments is empty. We will want the creator service when this happens

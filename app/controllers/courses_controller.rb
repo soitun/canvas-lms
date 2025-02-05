@@ -1619,7 +1619,10 @@ class CoursesController < ApplicationController
                MSFT_SYNC_MAX_ENROLLMENT_OWNERS: MicrosoftSync::MembershipDiff::MAX_ENROLLMENT_OWNERS,
                COURSE_PACES_ENABLED: @context.enable_course_paces?,
                ARCHIVED_GRADING_SCHEMES_ENABLED: Account.site_admin.feature_enabled?(:archived_grading_schemes),
-               COURSE_PUBLISHED: @context.published?
+               COURSE_PUBLISHED: @context.published?,
+               ALERTS: {
+                 data: @alerts,
+               }
              })
 
       set_tutorial_js_env
@@ -2226,6 +2229,11 @@ class CoursesController < ApplicationController
       end
 
       @context = api_find(Course.active, params[:id])
+
+      if @context.horizon_course? && !request.path.include?("/modules")
+        redirect_to course_context_modules_path(@context.id)
+        return
+      end
 
       assign_localizer
       if request.xhr?
@@ -3386,11 +3394,11 @@ class CoursesController < ApplicationController
         # Increment a log if both master course and course pacing are on
         if @old_save_master_course == @new_save_master_course
           if !changes[:enable_course_paces].nil? && (changes[:enable_course_paces][1] && MasterCourses::MasterTemplate.is_master_course?(@course))
-            InstStatsd::Statsd.increment("course.paced.blueprint_course")
+            InstStatsd::Statsd.distributed_increment("course.paced.blueprint_course")
           end
         elsif @old_save_master_course == false && @new_save_master_course == true
           if @course.enable_course_paces == true
-            InstStatsd::Statsd.increment("course.paced.blueprint_course")
+            InstStatsd::Statsd.distributed_increment("course.paced.blueprint_course")
           end
         end
 

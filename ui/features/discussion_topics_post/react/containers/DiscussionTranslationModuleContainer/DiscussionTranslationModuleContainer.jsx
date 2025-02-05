@@ -27,17 +27,41 @@ import {useScope as useI18nScope} from '@canvas/i18n'
 import {IconRefreshLine, IconEndLine} from '@instructure/ui-icons'
 import AiIcon from '@canvas/ai-icon'
 import {DiscussionManagerUtilityContext} from '../../utils/constants'
+import {TranslationTriggerModal} from "../../components/TranslationTriggerModal/TranslationTriggerModal";
 
 export const DiscussionTranslationModuleContainer = () => {
   const I18n = useI18nScope('discussions_posts')
   const [translationLanguageId, setTranslationLanguageId] = useState()
-  const {translationLanguages, setTranslateTargetLanguage} = useContext(
+  const [isModalOpen, setModalOpen] = useState(false)
+
+  const translationControlsRef = React.createRef()
+  const {translateTargetLanguage, setTranslateTargetLanguage, setShowTranslationControl} = useContext(
     DiscussionManagerUtilityContext,
   )
-  const {setShowTranslationControl} = useContext(DiscussionManagerUtilityContext)
 
-  const closeTranslationsModule = () => {
+
+  const closeTranslationModule = () => {
+    if(translateTargetLanguage){
+      setModalOpen(true)
+    } else {
+      setShowTranslationControl(false)
+    }
+  }
+
+  const closeModalAndKeepTranslations = () =>{
+    setModalOpen(false)
     setShowTranslationControl(false)
+  }
+
+  const closeModalAndRemoveTranslations = () =>{
+    setModalOpen(false)
+    setShowTranslationControl(false)
+    setTranslateTargetLanguage(null)
+  }
+
+  const resetTranslationsModule = () => {
+    translationControlsRef.current?.reset()
+    setTranslateTargetLanguage(null)
   }
 
   const translateDiscussion = () => {
@@ -54,12 +78,17 @@ export const DiscussionTranslationModuleContainer = () => {
       padding="large"
       margin="medium 0 0 0"
     >
+      <TranslationTriggerModal
+        isModalOpen={isModalOpen}
+        closeModal={() => {setModalOpen(false)}}
+        closeModalAndKeepTranslations={closeModalAndKeepTranslations}
+        closeModalAndRemoveTranslations={closeModalAndRemoveTranslations}/>
       <Heading level="h3">
         {I18n.t('Translate Discussion')}
         <span style={{float: 'right'}}>
           <IconButton
             size="small"
-            onClick={closeTranslationsModule}
+            onClick={closeTranslationModule}
             withBackground={false}
             withBorder={false}
             screenReaderLabel={I18n.t('Close translations module')}
@@ -76,6 +105,7 @@ export const DiscussionTranslationModuleContainer = () => {
       <Flex padding="medium 0 0 0" direction="row" alignItems="end" gap="small" wrap="wrap">
         <Flex.Item>
           <TranslationControls
+            ref={translationControlsRef}
             setTranslationLanguage={languageId => {
               setTranslationLanguageId(languageId)
             }}
@@ -90,9 +120,12 @@ export const DiscussionTranslationModuleContainer = () => {
           >
             {I18n.t('Translate')}
           </Button>
-          <Button renderIcon={<IconRefreshLine />}>{I18n.t('Reset')}</Button>
+          <Button onClick={resetTranslationsModule} renderIcon={<IconRefreshLine />}>
+            {I18n.t('Reset')}
+          </Button>
         </Flex.Item>
       </Flex>
     </View>
   )
 }
+

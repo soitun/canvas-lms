@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useEffect, useState} from 'react'
+import React, {useEffect, useRef, useState} from 'react'
 import {useScope as createI18nScope} from '@canvas/i18n'
 import {View} from '@instructure/ui-view'
 import filesEnv from '@canvas/files_v2/react/modules/filesEnv'
@@ -24,7 +24,6 @@ import {Flex} from '@instructure/ui-flex'
 import {canvas} from '@instructure/ui-theme-tokens'
 import {Responsive} from '@instructure/ui-responsive'
 import {Pagination} from '@instructure/ui-pagination'
-
 import FilesHeader from './FilesHeader'
 import FileFolderTable from './FileFolderTable'
 import FilesUsageBar from './FilesUsageBar'
@@ -32,6 +31,7 @@ import {useLoaderData} from 'react-router-dom'
 import {type Folder} from '../../interfaces/File'
 import {showFlashError} from '@canvas/alerts/react/FlashAlert'
 import {FileManagementContext} from './Contexts'
+import {MainFolderWrapper} from '../../utils/fileFolderWrappers'
 
 const I18n = createI18nScope('files_v2')
 
@@ -41,11 +41,16 @@ interface FilesAppProps {
 }
 
 const FilesApp = ({isUserContext, size}: FilesAppProps) => {
+  const showingAllContexts = filesEnv.showingAllContexts
   const [isTableLoading, setIsTableLoading] = useState(true)
   const [currentPageNumber, setCurrentPageNumber] = useState(1)
-  const [currentUrl, setCurrentUrl] = useState<string | null>(null)
+  const [baseUrl, setBaseUrl] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<string>('name')
+  const [sortDirection, setSortDirection] = useState<string>('asc')
+  const [currentUrl, setCurrentUrl] = useState<string>('')
   const [discoveredPages, setDiscoveredPages] = useState<{[key: number]: string}>({})
   const folders = useLoaderData() as Folder[] | null
+  const currentFolderWrapper = useRef<MainFolderWrapper | null>(null)
 
   // the useEffect is necessary to protect against folders being empty
   useEffect(() => {
@@ -53,11 +58,14 @@ const FilesApp = ({isUserContext, size}: FilesAppProps) => {
 
     const currentFolder = folders[folders.length - 1]
     const folderId = currentFolder.id
-    const initialUrl = `/api/v1/folders/${folderId}/all?include[]=user&include[]=usage_rights&include[]=enhanced_preview_url&include[]=context_asset_string`
+    const baseUrl = `/api/v1/folders/${folderId}/all?include[]=user&include[]=usage_rights&include[]=enhanced_preview_url&include[]=context_asset_string&include[]=blueprint_course_status`
 
-    setCurrentUrl(initialUrl)
-    setDiscoveredPages({1: initialUrl})
-  }, [folders])
+    setBaseUrl(baseUrl)
+    setCurrentUrl(`${baseUrl}&sort=${sortBy}&order=${sortDirection}`)
+    setDiscoveredPages({1: baseUrl})
+
+    currentFolderWrapper.current = new MainFolderWrapper(currentFolder)
+  }, [folders, sortBy, sortDirection])
 
   if (!folders || folders.length === 0) {
     showFlashError(I18n.t('Failed to retrieve folder information'))
@@ -78,7 +86,7 @@ const FilesApp = ({isUserContext, size}: FilesAppProps) => {
   const userCanManageFilesForContext =
     userCanAddFilesForContext || userCanEditFilesForContext || userCanDeleteFilesForContext
   const usageRightsRequiredForContext =
-    filesEnv.contextFor({contextType, contextId}).usage_rights_required || false
+    filesEnv.contextFor({contextType, contextId})?.usage_rights_required || false
 
   const handleTableLoadingStatusChange = (isLoading: boolean) => {
     setIsTableLoading(isLoading)
@@ -95,18 +103,38 @@ const FilesApp = ({isUserContext, size}: FilesAppProps) => {
     setCurrentUrl(discoveredPages[pageNumber])
   }
 
+  const handlePageReset = (newSortBy: string, newSortDirection: string) => {
+    setSortBy(newSortBy)
+    setSortDirection(newSortDirection)
+    const newInitialUrl = `${baseUrl}&sort=${newSortBy}&order=${newSortDirection}`
+    setCurrentUrl(newInitialUrl)
+    setCurrentPageNumber(1)
+    setDiscoveredPages({1: newInitialUrl})
+  }
+
   return (
-    <FileManagementContext.Provider value={{folderId, contextType, contextId}}>
+    <FileManagementContext.Provider
+      value={{
+        folderId,
+        contextType,
+        contextId,
+        showingAllContexts,
+        currentFolder: currentFolderWrapper.current,
+      }}
+    >
       <View as="div">
         <FilesHeader size={size} isUserContext={isUserContext} />
         {currentUrl && (
           <FileFolderTable
             size={size}
+            folderBreadcrumbs={folders}
             userCanEditFilesForContext={userCanEditFilesForContext}
+            userCanDeleteFilesForContext={userCanDeleteFilesForContext}
             usageRightsRequiredForContext={usageRightsRequiredForContext}
             currentUrl={currentUrl}
             onPaginationLinkChange={handlePaginationLinkChange}
             onLoadingStatusChange={handleTableLoadingStatusChange}
+            onPageReset={handlePageReset}
           />
         )}
         <Flex padding="small none none none" justifyItems="space-between">

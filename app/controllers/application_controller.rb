@@ -367,8 +367,6 @@ class ApplicationController < ActionController::Base
     explicit_latex_typesetting
     media_links_use_attachment_id
     permanent_page_links
-    selective_release_ui_api
-    assign_to_improved_search
     enhanced_course_creation_account_fetching
     instui_for_import_page
     multiselect_gradebook_filters
@@ -390,6 +388,7 @@ class ApplicationController < ActionController::Base
     file_verifiers_for_quiz_links
     lti_deep_linking_module_index_menu_modal
     lti_registrations_next
+    lti_asset_processor
     buttons_and_icons_root_account
     extended_submission_state
     scheduled_page_publication
@@ -403,7 +402,6 @@ class ApplicationController < ActionController::Base
     non_scoring_rubrics
     top_navigation_placement
     rubric_criterion_range
-    lti_migration_info
     rce_lite_enabled_speedgrader_comments
     lti_toggle_placements
     login_registration_ui_identity
@@ -411,6 +409,9 @@ class ApplicationController < ActionController::Base
     course_paces_skip_selected_days
     course_pace_download_document
     course_pace_draft_state
+    course_pace_time_selection
+    course_pace_pacing_status_labels
+    modules_requirements_allow_percentage
   ].freeze
   JS_ENV_BRAND_ACCOUNT_FEATURES = [
     :embedded_release_notes,

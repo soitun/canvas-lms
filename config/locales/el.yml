@@ -117,6 +117,7 @@ el:
       unexpectedDeleteError: "Κάτι δεν πήγε σωστά. Η διαγραφή δεν είναι, αυτή τη στιγμή, δυνατή."
       updateSuccess: "Επιτυχής ενημέρωση"
     length_error: "Πρέπει να έχει μήκος 255 χαρακτήρες ή λιγότερο"
+    title: "Όνομα Ομάδας"
   OutcomeView: 
     length_error: "Πρέπει να έχει μήκος 255 χαρακτήρες ή λιγότερο"
     mastery_error: "Πρέπει να είναι μεγαλύτερο ή ίσο από 0"
@@ -1669,6 +1670,7 @@ el:
   admin_4d3ba42f: Διαχειριστής
   admin_tools_9e2c9268: "Εργαλεία Διαχειριστή"
   admins_3e1dce15: Διαχειριστές
+  advanced_turnitin_settings_9ee84a38: "Προχωρημένες Ρυθμίσεις Turnitin"
   after_48b9d69: Έπειτα...
   after_4c71e718: Έπειτα
   after_date_981cd41b: "έπειτα απο τις %{date}"
@@ -2135,6 +2137,7 @@ el:
       not_yet_graded: "*Δεν έχει βαθμολογηθεί ακόμα*"
       score_with_points_possible: "*%{score}*/%{pointsPossible} μόρια"
       score_with_points_possible_screenreader: "Βαθμολογία: %{score} από %{pointsPossible} μόρια."
+    assignment_submit_success: "Η εργασία υποβλήθηκε επιτυχώς."
     assignments_list_right_side: 
       links: 
         see_current_grades: "Εμφάνιση των βαθμών μου μέχρι τώρα"
@@ -7290,6 +7293,7 @@ el:
         randomly_assign_students_dialog: "Κάτι τέτοιο θα κατατάξει αυτόματα τους μη εγγεγραμμένους σπουδαστές όσο το δυνατό πιο ομοιόμορφα σε ήδη υπάρχουσες ομάδες σπουδαστών."
       self_signup_help: 
         about_self_signup_groups: "Σχετικά με τις Ομάδες Αυτο-εγγραφής"
+        self_signup_deadline_description: "<mrk mid=\"6526\" mtype=\"seg\">Μπορείτε να δημιουργήσετε σετ ομάδων όπου οι σπουδαστές θα μπορούν να εγγράφονται μόνοι τους.</mrk> <mrk mid=\"6527\" mtype=\"seg\">Οι σπουδαστές μπορούν να εγγράφονται ακόμη σε μία μόνο ομάδα του σετ, αλλά έτσι οι σπουδαστές μπορούν να οργανώνονται οι ίδιοι σε ομάδες αντί να χρειάζεται να το κάνει αυτό ο καθηγητής.</mrk> <mrk mid=\"6528\" mtype=\"seg\">Σημειώνεται ότι όσο αυτή η επιλογή είναι ενεργοποιημένη, οι σπουδαστές μπορούν να μετακινούνται από μια ομάδα σε άλλη.</mrk>"
         self_signup_description: "<mrk mid=\"6526\" mtype=\"seg\">Μπορείτε να δημιουργήσετε σετ ομάδων όπου οι σπουδαστές θα μπορούν να εγγράφονται μόνοι τους.</mrk> <mrk mid=\"6527\" mtype=\"seg\">Οι σπουδαστές μπορούν να εγγράφονται ακόμη σε μία μόνο ομάδα του σετ, αλλά έτσι οι σπουδαστές μπορούν να οργανώνονται οι ίδιοι σε ομάδες αντί να χρειάζεται να το κάνει αυτό ο καθηγητής.</mrk> <mrk mid=\"6528\" mtype=\"seg\">Σημειώνεται ότι όσο αυτή η επιλογή είναι ενεργοποιημένη, οι σπουδαστές μπορούν να μετακινούνται από μια ομάδα σε άλλη.</mrk>"
     max_membership_number: "Το μέγιστο όριο των μελών ομάδας πρέπει να είναι αριθμός"
     membership_pending: 
@@ -7907,6 +7911,7 @@ el:
     text_helper: 
       ellipsis: "..."
       quoted_text_toggle: "προβολή κειμένου που παρατίθεται"
+  license_bdede4fb: Άδεια
   license_help: 
     content_license_help: "Βοήθεια για την Αδειοδότηση του Περιεχομένου"
   light_blue_5374f600: "Μπλε Ανοιχτό"
@@ -9963,6 +9968,7 @@ el:
   move_abf00365: Μετακίνησε
   move_dialog_select: 
     move_to_end: "-- Στο κάτω μέρος --"
+  move_from_ef79aa53: "Μετακίνηση από"
   move_module_item_77754119: "Μετακίνηση Ενότητας/Στοιχείου"
   move_name_to_a_new_group_acabed4e: "Μετακίνηση του/της %{name} σε νέα ομάδα"
   move_outcome_ce497e6c: "Μετακίνηση Αποτελέσματος"
@@ -10087,6 +10093,7 @@ el:
   no_outcome_selected_16d15753: "Δεν έχει επιλεγεί Αποτέλεσμα"
   no_password_was_given_472222e5: "Δεν δόθηκε κωδικός πρόσβασης"
   no_placements_enabled_f705f28: "Δεν έχουν Ενεργοποιηθεί Τοποθετήσεις"
+  no_preview_available_e8e71199: "Προβολή μη διαθέσιμη"
   no_results_3cda4e72: "Δεν υπάρχουν Αποτελέσματα"
   no_results_f36777ee: "Κανένα αποτέλεσμα"
   no_results_found_2ace1494: "Δεν βρέθηκαν αποτελέσματα"
@@ -15713,6 +15720,7 @@ el:
   view_notifications_6aea09a2: "Προβολή Ειδοποιήσεων"
   view_previous_file_b846db4f: "Προβολή προηγούμενου αρχείου"
   view_question_banks_188a9e0f: "Προβολή Τραπεζών Ερωτήσεων"
+  view_registered_services_6c8cd301: "Προβολή Υπηρεσιών στις οποίες έχετε Εγγραφεί"
   view_rubric_d71cce10: "Εμφάνιση Ρουμπρίκας Αξιολόγισης"
   view_the_assignment_e61ca4fc: "Δείτε την εργασία"
   view_this_message_in_conversations_5a16bc9f: "Προβολή αυτού του μηνύματος στις Συνομιλίες"

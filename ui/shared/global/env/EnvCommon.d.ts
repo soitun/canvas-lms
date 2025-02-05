@@ -66,6 +66,35 @@ export type GroupOutcome = {
   description: string
 }
 
+export interface BlueprintCourse {
+  id: number | string
+  name: string
+  enrollment_term_id: number | string
+}
+
+export interface SubAccount {
+  id: number | string
+  name: string
+}
+
+export interface Term {
+  id: number | string
+  name: string
+}
+
+export interface BlueprintCoursesData {
+  isMasterCourse: boolean
+  isChildCourse: boolean
+  accountId: number | string
+  masterCourse: BlueprintCourse
+  course: BlueprintCourse
+  subAccounts?: SubAccount[]
+  terms?: Term[]
+  canManageCourse?: boolean
+  canAutoPublishCourses?: boolean
+  itemNotificationFeatureEnabled?: boolean
+}
+
 export interface EnvCommon {
   ASSET_HOST: string
   active_brand_config_json_url: string
@@ -233,6 +262,8 @@ export interface EnvCommon {
    * and ui/shared/trays/react/ContentTypeExternalToolDrawer.tsx
    */
   top_navigation_tools: Tool[]
+
+  BLUEPRINT_COURSES_DATA: BlueprintCoursesData | undefined
 }
 
 /**
@@ -243,8 +274,6 @@ export type SiteAdminFeatureId =
   | 'account_level_blackout_dates'
   | 'course_paces_for_students'
   | 'course_paces_redesign'
-  | 'selective_release_ui_api'
-  | 'assign_to_improved_search'
   | 'enhanced_course_creation_account_fetching'
   | 'explicit_latex_typesetting'
   | 'featured_help_links'
@@ -283,6 +312,10 @@ export type RootAccountFeatureId =
   | 'course_paces_skip_selected_days'
   | 'course_pace_download_document'
   | 'course_pace_draft_state'
+  | 'course_pace_time_selection'
+  | 'course_pace_pacing_status_labels'
+  | 'modules_requirements_allow_percentage'
+  | 'lti_asset_processor'
 
 /**
  * From ApplicationController#JS_ENV_BRAND_ACCOUNT_FEATURES
