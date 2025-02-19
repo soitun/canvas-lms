@@ -86,6 +86,7 @@ end
 
 module Interfaces::SubmissionInterface
   include Interfaces::BaseInterface
+  include GraphQLHelpers::AnonymousGrading
 
   description "Types for submission or submission history"
 
@@ -147,7 +148,7 @@ module Interfaces::SubmissionInterface
 
   field :user, Types::UserType, null: true
   def user
-    load_association(:user)
+    unless_hiding_user_for_anonymous_grading { load_association(:user) }
   end
 
   field :attempt, Integer, null: false
@@ -489,12 +490,25 @@ module Interfaces::SubmissionInterface
           host: context[:request].host_with_port
         )
       elsif submission.submission_type == "discussion_topic"
-        GraphQLHelpers::UrlHelpers.course_discussion_topic_url(
-          submission.course_id,
-          assignment.discussion_topic.id,
-          host: context[:request].host_with_port,
-          embed: true
-        )
+        if assignment.discussion_topic.for_group_discussion?
+          GraphQLHelpers::UrlHelpers.group_discussion_topics_url(
+            assignment.discussion_topic.group_category.group_for(submission.user_id).id,
+            host: context[:request].host_with_port,
+            embed: true,
+            headless: 1,
+            root_discussion_topic_id: assignment.discussion_topic.id,
+            student_id: submission.user_id
+          )
+        else
+          GraphQLHelpers::UrlHelpers.course_discussion_topic_url(
+            submission.course_id,
+            assignment.discussion_topic.id,
+            host: context[:request].host_with_port,
+            embed: true,
+            persist: 1,
+            student_id: submission.user_id
+          )
+        end
       else
         GraphQLHelpers::UrlHelpers.course_assignment_submission_url(
           submission.course_id,
@@ -517,7 +531,7 @@ module Interfaces::SubmissionInterface
   delegate :word_count, to: :object
 
   def version_query_param(submission)
-    if submission.attempt.present? && submission.attempt > 0
+    if submission.attempt.present? && submission.attempt > 0 && submission.submission_type != "online_quiz"
       submission.attempt - 1
     else
       submission.attempt

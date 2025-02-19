@@ -110,6 +110,9 @@ module Lti
     LTI_ASSIGN_DESCRIPTION = -> { @assignment.present? || @originality_report.present? || @secure_params.present? }
     EDITOR_GUARD = -> { @editor_contents.present? }
     STUDENT_ASSIGNMENT_GUARD = -> { lti_helper.course&.user_is_student?(@current_user) && @assignment }
+    INSTRUCTURE_IDENTITY_GUARD = -> { INSTRUCTURE_IDENTITY }
+
+    INSTRUCTURE_IDENTITY = false
 
     def initialize(root_account, context, controller, opts = {})
       @root_account = root_account
@@ -282,7 +285,7 @@ module Lti
                          if @tool.use_1_3?
                            observed_users.map { |u| u.lookup_lti_id(lti_helper.course) }.join(",")
                          else
-                           observed_users.map { |u| Lti::Asset.opaque_identifier_for(u) }.join(",")
+                           observed_users.map { |u| Lti::V1p1::Asset.opaque_identifier_for(u) }.join(",")
                          end
                        },
                        COURSE_GUARD,
@@ -551,7 +554,7 @@ module Lti
     #   ```
     register_expansion "Context.id",
                        [],
-                       -> { Lti::Asset.opaque_identifier_for(@context) },
+                       -> { Lti::V1p1::Asset.opaque_identifier_for(@context) },
                        default_name: "context_id"
 
     # The Canvas global identifier for the launch context
@@ -739,6 +742,18 @@ module Lti
     register_expansion "Canvas.rootAccount.sisSourceId",
                        [],
                        -> { @root_account.sis_source_id }
+
+    # returns the organization ID from Instructure Identity for the root account
+    #
+    # @internal Temporarily undocumented
+    # @example
+    #   ```
+    #   "bbf35116-54bd-4496-9882-05d76ac7eed6d"
+    #   ``
+    register_expansion "com.instructure.Account.instructureIdentityOrganizationId",
+                       [],
+                       -> { @root_account.instructure_identity_org_id },
+                       INSTRUCTURE_IDENTITY_GUARD
 
     # returns the global ID for the external tool that was launched. Only available for LTI 1.
     # @example
@@ -1318,6 +1333,33 @@ module Lti
                        -> { @current_user.uuid },
                        USER_GUARD
 
+    # Returns the user ID from Instructure Identity that can be correlated across Instructure
+    # Identity organizations
+    #
+    # @internal Temporarily undocumented
+    # @example
+    #   ```
+    #   "3055a889-a9cf-4607-a003-9fa829c83aad"
+    #   ``
+    register_expansion "com.instructure.User.instructureIdentityGlobalUserId",
+                       [],
+                       -> { @current_user.instructure_identity_id },
+                       USER_GUARD,
+                       INSTRUCTURE_IDENTITY_GUARD
+
+    # Returns the user ID from Instructure Identity within their Instructure Identity organization
+    #
+    # @internal Temporarily undocumented
+    # @example
+    #   ```
+    #   "f16dc1a6-566c-4759-ae03-2ac8a1407b31"
+    #   ````
+    register_expansion "com.instructure.User.instructureIdentityOrganizationUserId",
+                       [],
+                       -> { @current_user.instructure_pseudonym_for(@root_account)&.unique_id },
+                       USER_GUARD,
+                       INSTRUCTURE_IDENTITY_GUARD
+
     # Returns the users preference for high contrast colors (an accessibility feature).
     # @example
     #   ```
@@ -1348,7 +1390,7 @@ module Lti
                        [],
                        lambda {
                          @current_user.groups.active.where(context_type: "Course", context_id: @context.id).map do |g|
-                           Lti::Asset.opaque_identifier_for(g)
+                           Lti::V1p1::Asset.opaque_identifier_for(g)
                          end.join(",")
                        },
                        -> { @current_user && @context.is_a?(Course) }

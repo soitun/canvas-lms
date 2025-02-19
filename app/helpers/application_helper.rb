@@ -26,7 +26,7 @@ module ApplicationHelper
   include Canvas::LockExplanation
   include DatadogRumHelper
   include NewQuizzesFeaturesHelper
-  include HeapHelper
+  include UsageMetricsHelper
 
   BYTE_UNITS = %w[B KB MB GB TB PB EB ZB YB].freeze
 
@@ -1449,7 +1449,7 @@ module ApplicationHelper
   end
 
   def append_default_due_time_js_env(context, hash)
-    hash[:DEFAULT_DUE_TIME] = context.default_due_time if context&.default_due_time.present? && context.root_account.feature_enabled?(:default_due_time)
+    hash[:DEFAULT_DUE_TIME] = context.default_due_time if context&.default_due_time.present?
   end
 
   def number_to_human_size_mb(number, options = {})

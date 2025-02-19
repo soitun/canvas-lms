@@ -61,6 +61,7 @@ class AbstractAssignment < ActiveRecord::Base
     graders_anonymous_to_graders
     anonymous_instructor_annotations
   ].freeze
+  HORIZON_SUBMISSION_TYPES = %w[online_text_entry online_upload external_tool].freeze
 
   DEFAULT_POINTS_POSSIBLE = 0
 
@@ -105,7 +106,6 @@ class AbstractAssignment < ActiveRecord::Base
   has_many :provisional_grades, through: :submissions
   belongs_to :annotatable_attachment, class_name: "Attachment"
   has_many :attachments, as: :context, inverse_of: :context, dependent: :destroy
-  has_many :assignment_student_visibilities, inverse_of: :assignment, foreign_key: :assignment_id
   has_one :quiz, class_name: "Quizzes::Quiz", inverse_of: :assignment, foreign_key: :assignment_id
   belongs_to :assignment_group
   has_one :discussion_topic, -> { where(root_topic_id: nil).order(:created_at) }, inverse_of: :assignment, foreign_key: :assignment_id
@@ -162,6 +162,7 @@ class AbstractAssignment < ActiveRecord::Base
   has_many :sub_assignments, -> { active }, foreign_key: :parent_assignment_id, inverse_of: :parent_assignment
   has_many :sub_assignment_submissions, through: :sub_assignments, source: :submissions
   has_many :sub_assignment_overrides, through: :sub_assignments, source: :assignment_overrides
+  has_one :estimated_duration, dependent: :destroy, inverse_of: :assignment
 
   scope :assigned_to_student, ->(student_id) { joins(:submissions).where(submissions: { user_id: student_id }) }
   scope :anonymous, -> { where(anonymous_grading: true) }
@@ -210,6 +211,7 @@ class AbstractAssignment < ActiveRecord::Base
   validates :grader_count, numericality: true
   validates :allowed_attempts, numericality: { greater_than: 0 }, unless: proc { |a| a.allowed_attempts == -1 }, allow_nil: true
   validates :sis_source_id, uniqueness: { scope: :root_account_id }, allow_nil: true
+  validates_with HorizonValidators::AssignmentValidator, if: -> { context.is_a?(Course) && context.horizon_course? }
 
   with_options unless: :moderated_grading? do
     validates :graders_anonymous_to_graders, absence: true
@@ -254,6 +256,17 @@ class AbstractAssignment < ActiveRecord::Base
   # included to make it easier to work with api, which returns
   # sis_source_id as sis_assignment_id.
   alias_attribute :sis_assignment_id, :sis_source_id
+
+  def queue_conditional_release_grade_change_handler?
+    shard.activate do
+      # use request caches to handle n+1's when updating a lot of submissions in the same course in one request
+      return false unless RequestCache.cache("conditional_release_feature_enabled", context_id) do
+        course.conditional_release?
+      end
+
+      ConditionalRelease::Rule.is_trigger_assignment?(self)
+    end
+  end
 
   def checkpoint?
     false
@@ -425,6 +438,12 @@ class AbstractAssignment < ActiveRecord::Base
     end
 
     result.post_to_sis = false
+
+    if estimated_duration
+      # we have to save result here because we need the result.id to create the estimated_duration
+      result.save!
+      result.estimated_duration = EstimatedDuration.new({ assignment_id: result.id, duration: estimated_duration.duration.iso8601 })
+    end
 
     result
   end
@@ -875,7 +894,7 @@ class AbstractAssignment < ActiveRecord::Base
     return unless quiz_lti?
 
     if anonymous_grading_changed?(to: true)
-      InstStatsd::Statsd.increment("assignment.new_quiz.anonymous.enabled")
+      InstStatsd::Statsd.distributed_increment("assignment.new_quiz.anonymous.enabled")
     end
   end
 
@@ -2025,14 +2044,7 @@ class AbstractAssignment < ActiveRecord::Base
       can :manage_files_delete
 
     given do |user, session|
-      !context.root_account.feature_enabled?(:granular_permissions_manage_assignments) &&
-        context.grants_right?(user, session, :manage_assignments)
-    end
-    can :create and can :read
-
-    given do |user, session|
-      context.root_account.feature_enabled?(:granular_permissions_manage_assignments) &&
-        context.grants_right?(user, session, :manage_assignments_add)
+      context.grants_right?(user, session, :manage_assignments_add)
     end
     can :create and can :read
 
@@ -2040,18 +2052,8 @@ class AbstractAssignment < ActiveRecord::Base
     can :update
 
     given do |user, session|
-      !context.root_account.feature_enabled?(:granular_permissions_manage_assignments) &&
-        context.grants_right?(user, session, :manage_assignments) &&
-        (context.account_membership_allows(user) ||
-         !in_closed_grading_period?)
-    end
-    can :delete
-
-    given do |user, session|
-      context.root_account.feature_enabled?(:granular_permissions_manage_assignments) &&
-        context.grants_right?(user, session, :manage_assignments_delete) &&
-        (context.account_membership_allows(user) ||
-         !in_closed_grading_period?)
+      context.grants_right?(user, session, :manage_assignments_delete) &&
+        (context.account_membership_allows(user) || !in_closed_grading_period?)
     end
     can :delete
 
@@ -2059,13 +2061,13 @@ class AbstractAssignment < ActiveRecord::Base
       next false unless user
       next false if submission_types == "discussion_topic" && !context.grants_right?(user, session, :moderate_forum)
 
-      context.grants_any_right?(user, session, :manage_assignments, :manage_assignments_edit)
+      context.grants_right?(user, session, :manage_assignments_edit)
     end
     can :manage_assign_to
   end
 
   def user_can_update?(user, session = nil)
-    return false unless context.grants_any_right?(user, session, :manage_assignments, :manage_assignments_edit)
+    return false unless context.grants_right?(user, session, :manage_assignments_edit)
     return true unless moderated_grading?
 
     # a moderated assignment may only be edited by the assignment's moderator (assuming one has
@@ -2566,7 +2568,7 @@ class AbstractAssignment < ActiveRecord::Base
     # move the following 2 lines out of the trnx
     # make the trnx simpler. The trnx will have fewer locks and rollbacks.
     homework_lti_user_id_hash = students.to_h do |student|
-      [student.global_id, Lti::Asset.opaque_identifier_for(student)]
+      [student.global_id, Lti::V1p1::Asset.opaque_identifier_for(student)]
     end
     submissions = find_or_create_submissions(students, Submission.preload(:grading_period)).sort_by(&:id)
 
@@ -2947,6 +2949,7 @@ class AbstractAssignment < ActiveRecord::Base
 
     progress.set_results(results)
     attachment.destroy!
+    zip_extractor.remove_extracted_files!
   end
 
   def submission_reupload_progress
@@ -3176,8 +3179,8 @@ class AbstractAssignment < ActiveRecord::Base
   scope :for_course, ->(course_id) { where(context_type: "Course", context_id: course_id) }
   scope :for_group_category, ->(group_category_id) { where(group_category_id:) }
 
-  scope :visible_to_students_in_course_with_da, lambda { |user_ids, course_ids|
-    visible_assignment_ids = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(user_ids:, course_ids:).map(&:assignment_id)
+  scope :visible_to_students_in_course_with_da, lambda { |user_ids, course_ids, assignment_ids = nil|
+    visible_assignment_ids = AssignmentVisibility::AssignmentVisibilityService.assignments_visible_to_students(user_ids:, course_ids:, assignment_ids:).map(&:assignment_id)
 
     if visible_assignment_ids.any?
       where(id: visible_assignment_ids)
@@ -4188,7 +4191,8 @@ class AbstractAssignment < ActiveRecord::Base
     @anonymous_student_identities ||= all_submissions.active.order(Arel.sql('anonymous_id COLLATE "C" ASC')).order("md5(id::text) ASC").each_with_object({}).with_index(1) do |(identity, identities), student_number|
       identities[identity["user_id"]] = {
         name: I18n.t("Student %{student_number}", { student_number: }),
-        position: student_number
+        position: student_number,
+        anonymous_id: identity["anonymous_id"]
       }
     end
   end
@@ -4214,11 +4218,19 @@ class AbstractAssignment < ActiveRecord::Base
 
     return false if rubric_association.rubric_assessments.where(assessment_type: "self_assessment").any?
 
+    return false if has_group_category?
+
     earliest_due_date = submissions.active.minimum(:cached_due_date)
 
     return true if earliest_due_date.nil?
 
     Time.zone.now < earliest_due_date
+  end
+
+  def rubric_self_assessment_enabled?
+    return false if has_group_category?
+
+    rubric_self_assessment_enabled
   end
 
   private

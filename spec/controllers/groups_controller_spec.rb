@@ -73,6 +73,18 @@ describe GroupsController do
       expect(assigns[:categories].length).to be(2)
     end
 
+    it "js_env group_categories only includes non-deleted categories" do
+      user_session(@teacher)
+      active_category = @course.group_categories.create!(name: "Active Category")
+      deleted_category = @course.group_categories.create!(name: "Deleted Category")
+      deleted_category.update!(deleted_at: Time.now.utc)
+
+      get "index", params: { course_id: @course.id }
+
+      group_categories = assigns[:js_env][:group_categories]
+      expect(group_categories.pluck("id")).to contain_exactly(active_category.id)
+    end
+
     it "returns groups in sorted by group category name, then group name for student view" do
       user_session(@student)
       category1 = @course.group_categories.create(name: "1")
@@ -349,6 +361,38 @@ describe GroupsController do
         user_session(@teacher)
         get "index", params: { course_id: @course.id }
         expect(assigns[:js_env][:self_signup_deadline_enabled]).to be_falsey
+      end
+    end
+
+    context "context_groups renders successfully" do
+      it "for a student" do
+        user_session(@student)
+        get "index", params: { course_id: @course.id }, format: :html
+        expect(response).to be_successful
+      end
+
+      it "for a teacher" do
+        user_session(@teacher)
+        get "index", params: { course_id: @course.id }, format: :html
+        expect(response).to be_successful
+      end
+
+      context "with deprecate_context_groups_old_view FF enabled" do
+        before do
+          Account.site_admin.enable_feature!(:deprecate_context_groups_old_view)
+        end
+
+        it "for a student" do
+          user_session(@student)
+          get "index", params: { course_id: @course.id }, format: :html
+          expect(response).to be_successful
+        end
+
+        it "for a teacher" do
+          user_session(@teacher)
+          get "index", params: { course_id: @course.id }, format: :html
+          expect(response).to be_successful
+        end
       end
     end
   end
@@ -1212,6 +1256,24 @@ describe GroupsController do
         assigns[:groups].each do |group|
           expect(group.non_collaborative).to be false
         end
+      end
+
+      it "returns group category name when filtered by user id and non collaborative groups" do
+        students = create_users_in_course(@course, 2, return_type: :record)
+        student1, student2 = students
+        @non_collaborative_group.add_user(student1)
+        @non_collaborative_group.add_user(student2)
+        user_session(@teacher)
+        get "index",
+            params: { course_id: @course.id,
+                      collaboration_state: "non_collaborative",
+                      user_id: student1.id },
+            format: :json
+        expect(response).to be_successful
+        parsed_json = json_parse(response.body)
+        expect(parsed_json.length).to eq 1
+        expect(parsed_json.first.keys).to include "group_category_name"
+        expect(parsed_json.first["group_category_name"]).to include @non_collaborative_group_category.name
       end
     end
 

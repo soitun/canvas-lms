@@ -235,9 +235,9 @@ module Lti
           it { is_expected.to be_bad_request }
 
           it "reports error metric" do
-            allow(InstStatsd::Statsd).to receive(:increment).and_call_original
+            allow(InstStatsd::Statsd).to receive(:distributed_increment).and_call_original
             subject
-            expect(InstStatsd::Statsd).to have_received(:increment).with("canvas.deep_linking_controller.request_error", tags: { code: 400 })
+            expect(InstStatsd::Statsd).to have_received(:distributed_increment).with("canvas.deep_linking_controller.request_error", tags: { code: 400 })
           end
 
           it "responds with an error" do
@@ -818,7 +818,7 @@ module Lti
                     account_admin_user_with_role_changes(
                       account:,
                       role: department_admin_role,
-                      role_changes: { manage_content: false, manage_course_content_add: false }
+                      role_changes: { manage_course_content_add: false }
                     )
                     user_session(@user)
                     subject
@@ -830,7 +830,7 @@ module Lti
                     account_admin_user_with_role_changes(
                       account:,
                       role: department_admin_role,
-                      role_changes: { manage_content: false, manage_course_content_add: true }
+                      role_changes: { manage_course_content_add: true }
                     )
                     user_session(@user)
                     subject

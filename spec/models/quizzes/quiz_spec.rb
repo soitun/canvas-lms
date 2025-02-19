@@ -1240,6 +1240,31 @@ describe Quizzes::Quiz do
     end
   end
 
+  describe "#effective_group_category_id" do
+    it "returns group category id if it has an assignment" do
+      group_category = @course.group_categories.create!(name: "category")
+      quiz = @course.quizzes.create(title: "test quiz")
+      quiz.publish!
+      expect(quiz.assignment).to be_present
+      quiz.assignment.group_category_id = group_category.id
+      quiz.save!
+      expect(quiz.effective_group_category_id).to eq group_category.id
+      expect(quiz.group_category_id).to eq group_category.id
+    end
+
+    it "returns nil if the assignment does not have a group category id" do
+      quiz = @course.quizzes.create(title: "test quiz")
+      quiz.publish!
+      expect(quiz.assignment).to be_present
+      expect(quiz.effective_group_category_id).to be_nil
+    end
+
+    it "returns nil if it doesn't have an assignment" do
+      quiz = @course.quizzes.create(title: "test quiz")
+      expect(quiz.effective_group_category_id).to be_nil
+    end
+  end
+
   describe "linking overrides with assignments" do
     let_once(:course) { course_model }
     let_once(:quiz) { quiz_model(course:, due_at: 5.days.from_now).reload }
@@ -1991,7 +2016,7 @@ describe Quizzes::Quiz do
 
     it "lets admins read quizzes that are unpublished even without management rights" do
       @quiz.unpublish!.reload
-      @course.account.role_overrides.create!(role: teacher_role, permission: "manage_assignments", enabled: false)
+      @course.account.role_overrides.create!(role: teacher_role, permission: "manage_assignments_add", enabled: false)
       @course.account.role_overrides.create!(role: teacher_role, permission: "manage_grades", enabled: false)
       expect(@quiz.grants_right?(@teacher, :read)).to be true
     end
@@ -2674,6 +2699,13 @@ describe Quizzes::Quiz do
       expect(ids.class).to eq Array
       expect(ids.count).to eq 1
       expect(ids.first).to eq @bank.id
+    end
+  end
+
+  describe "Horizon course" do
+    it "does not allow classic quiz creation" do
+      allow(@course).to receive(:horizon_course?).and_return(true)
+      expect { @course.quizzes.create!(title: "test") }.to raise_error(ActiveRecord::RecordInvalid)
     end
   end
 end

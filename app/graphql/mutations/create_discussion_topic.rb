@@ -69,7 +69,7 @@ class Mutations::CreateDiscussionTopic < Mutations::DiscussionBase
 
     # TODO: return an error when user tries to create a graded anonymous discussion
 
-    if input[:todo_date] && !discussion_topic_context.grants_any_right?(current_user, session, :manage_content, :manage_course_content_add)
+    if input[:todo_date] && !discussion_topic_context.grants_right?(current_user, session, :manage_course_content_add)
       return validation_error(I18n.t("You do not have permission to add this topic to the student to-do list."))
     end
 
@@ -112,7 +112,7 @@ class Mutations::CreateDiscussionTopic < Mutations::DiscussionBase
       discussion_topic.anonymous_state = anonymous_state
     end
 
-    if (!input.key?(:ungraded_discussion_overrides) && !Account.site_admin.feature_enabled?(:selective_release_ui_api)) || is_announcement
+    if is_announcement
       # TODO: deprecate discussion_topic_section_visibilities for assignment_overrides LX-1498
       set_sections(input[:specific_sections], discussion_topic)
       invalid_sections = verify_specific_section_visibilities(discussion_topic) || []
@@ -120,6 +120,11 @@ class Mutations::CreateDiscussionTopic < Mutations::DiscussionBase
       unless invalid_sections.empty?
         return validation_error(I18n.t("You do not have permissions to modify discussion for section(s) %{section_ids}", section_ids: invalid_sections.join(", ")))
       end
+    end
+
+    # Validating default expand input data
+    if input.key?(:expanded) && input.key?(:expanded_locked) && (!input[:expanded] && input[:expanded_locked])
+      return validation_error(I18n.t("Cannot set default thread state locked, when threads are collapsed"))
     end
 
     process_common_inputs(input, is_announcement, discussion_topic)

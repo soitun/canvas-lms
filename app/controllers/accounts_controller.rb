@@ -1452,10 +1452,7 @@ class AccountsController < ApplicationController
         delete_tool_manually: @account.grants_right?(@current_user, session, :manage_lti_delete)
       }
 
-      can_set_token = true
-      if @account.root_account.feature_enabled?(:require_permission_for_app_center_token)
-        can_set_token = %i[add_tool_manually edit_tool_manually delete_tool_manually].any? { |perm| js_permissions[perm] }
-      end
+      can_set_token = %i[add_tool_manually edit_tool_manually delete_tool_manually].any? { |perm| js_permissions[perm] }
 
       js_env({
                APP_CENTER: { enabled: Canvas::Plugin.find(:app_center).enabled?, can_set_token: },
@@ -1477,7 +1474,11 @@ class AccountsController < ApplicationController
                  BASE_URL: MicrosoftSync::LoginService::BASE_URL
                },
                COURSE_CREATION_SETTINGS: course_creation_settings,
-               EMOJI_DENY_LIST: @account.root_account.settings[:emoji_deny_list]
+               EMOJI_DENY_LIST: @account.root_account.settings[:emoji_deny_list],
+               ALERTS: {
+                 data: @alerts,
+                 account_roles: @account_roles,
+               }
              })
       js_env(edit_help_links_env, true)
     end
@@ -1924,8 +1925,6 @@ class AccountsController < ApplicationController
 
   def set_app_center_access_token
     # not touching params will allow it to be set as usual
-    return :ok unless @account.root_account.feature_enabled?(:require_permission_for_app_center_token)
-
     token = params.dig(:account, :settings)&.delete(:app_center_access_token)
     return if token.nil?
 
@@ -1979,7 +1978,7 @@ class AccountsController < ApplicationController
     js_env
     css_bundle :account_calendar_settings
     js_bundle :account_calendar_settings
-    InstStatsd::Statsd.increment("account_calendars.settings.visit")
+    InstStatsd::Statsd.distributed_increment("account_calendars.settings.visit")
     render html: '<div id="account-calendar-settings-container"></div>'.html_safe, layout: true
   end
 

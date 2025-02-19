@@ -16,7 +16,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useCallback, useEffect, useState} from 'react'
+import React, {useCallback, useEffect, useState, useRef} from 'react'
 
 import {
   CommonMigratorControls,
@@ -32,6 +32,7 @@ import {IconEndLine, IconFolderLine, IconSearchLine, IconTroubleLine} from '@ins
 import {Spinner} from '@instructure/ui-spinner'
 import {TextInput} from '@instructure/ui-text-input'
 import {TreeBrowser} from '@instructure/ui-tree-browser'
+import {TruncateText} from '@instructure/ui-truncate-text'
 import {View} from '@instructure/ui-view'
 import type {FetchLinkHeader} from '@canvas/do-fetch-api-effect/types'
 import type {onSubmitMigrationFormCallback} from '../types'
@@ -97,13 +98,13 @@ const SelectedFolderName = ({folderName, clearFolderName}: SelectedFolderNamePro
   }
 
   return (
-    <Flex alignItems="center" gap="x-small" justifyItems="space-between">
+    <Flex alignItems="center" gap="x-small">
       <IconFolderLine />
-      <View as="div" width="100%">
+      <Flex.Item shouldShrink shouldGrow>
         <Text weight="bold" size="small">
-          {folderName}
+          <TruncateText>{folderName}</TruncateText>
         </Text>
-      </View>
+      </Flex.Item>
       <IconButton
         withBackground={false}
         withBorder={false}
@@ -129,18 +130,24 @@ const ZipFileImporter = ({
   const [searchValue, setSearchValue] = useState('')
   const [fileError, setFileError] = useState<boolean>(false)
   const [folderError, setFolderError] = useState<boolean>(false)
+  const folderInputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleErrorFocus = (folderError: boolean) => {
+    if (folderError) {
+      folderInputRef.current?.focus()
+    }
+  }
 
   const handleSubmit: onSubmitMigrationFormCallback = useCallback(
     formData => {
-      if (!file) {
-        setFileError(true)
-      }
+      const fileError = !file
+      const folderError = !folder
 
-      if (!folder) {
-        setFolderError(true)
-      }
+      setFileError(fileError)
+      setFolderError(folderError)
 
-      if (!file || !folder) {
+      if (fileError || folderError) {
+        handleErrorFocus(folderError)
         return
       }
 
@@ -266,10 +273,10 @@ const ZipFileImporter = ({
         isRequired={true}
       />
       {!isSubmitting && (
-        <View as="div" margin="medium none none none" maxWidth="22.5rem">
+        <View as="div" margin="medium none none none" maxWidth="46.5rem">
           {folders.length > 0 ? (
             <>
-              <RequiredFormLabel showErrorState={folderError}>
+              <RequiredFormLabel showErrorState={folderError} htmlFor="folder-search">
                 {I18n.t('Upload to')}
               </RequiredFormLabel>
               <View as="div" margin="x-small 0 medium" data-testid="fileName">
@@ -284,6 +291,7 @@ const ZipFileImporter = ({
                 />
               </View>
               <TextInput
+                id="folder-search"
                 renderLabel=""
                 placeholder={I18n.t('Search folders')}
                 value={searchValue}
@@ -293,6 +301,12 @@ const ZipFileImporter = ({
                 }}
                 renderBeforeInput={<IconSearchLine inline={false} />}
                 renderAfterInput={renderClearButton()}
+                inputRef={ref => (folderInputRef.current = ref)}
+                messages={
+                  folderError
+                    ? [{text: I18n.t('Please select a folder'), type: 'screenreader-only'}]
+                    : []
+                }
               />
               <View
                 as="div"

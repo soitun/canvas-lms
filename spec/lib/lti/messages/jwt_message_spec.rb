@@ -17,10 +17,8 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 
-require_relative "../../../lti_1_3_spec_helper"
-
 describe Lti::Messages::JwtMessage do
-  include_context "lti_1_3_spec_helper"
+  include_context "key_storage_helper"
 
   let(:return_url) { "http://www.platform.com/return_url" }
   let(:user) { @student }
@@ -105,7 +103,7 @@ describe Lti::Messages::JwtMessage do
     end
 
     it 'sets the "deployment_id" claim' do
-      expect(decoded_jwt["https://purl.imsglobal.org/spec/lti/claim/deployment_id"]).to eq "#{tool.id}:#{Lti::Asset.opaque_identifier_for(tool.context)}"
+      expect(decoded_jwt["https://purl.imsglobal.org/spec/lti/claim/deployment_id"]).to eq "#{tool.id}:#{Lti::V1p1::Asset.opaque_identifier_for(tool.context)}"
     end
 
     it 'sets the "exp" claim to lti.oauth2.access_token.exp' do

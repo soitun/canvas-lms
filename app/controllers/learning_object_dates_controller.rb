@@ -97,7 +97,6 @@
 #       }
 #     }
 class LearningObjectDatesController < ApplicationController
-  before_action :require_feature_flag # remove when selective_release_ui_api flag is removed
   before_action :require_user
   before_action :require_context
   before_action :check_authorized_action
@@ -192,6 +191,7 @@ class LearningObjectDatesController < ApplicationController
     when "Quizzes::Quiz"
       update_quiz(asset, object_update_params.except(:reply_to_topic_due_at, :required_replies_due_at))
     when "DiscussionTopic"
+      asset.overrides_changed = true
       if asset == overridable
         update_ungraded_object(asset, object_update_params)
       else
@@ -216,10 +216,6 @@ class LearningObjectDatesController < ApplicationController
   end
 
   private
-
-  def require_feature_flag
-    not_found unless Account.site_admin.feature_enabled? :selective_release_ui_api
-  end
 
   def check_authorized_action
     return render json: { error: "This API does not support files." }, status: :bad_request if asset.is_a?(Attachment) && !Account.site_admin.feature_enabled?(:differentiated_files)

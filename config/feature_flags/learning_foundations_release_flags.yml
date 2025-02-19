@@ -119,22 +119,6 @@ instui_for_import_page:
     If enabled, the course import page will use InstUI components
   applies_to: SiteAdmin
 
-selective_release_ui_api:
-  state: hidden
-  display_name: Selective Release - UI/API Changes
-  description: |-
-    Selective Release is a feature that allows modules and module items to
-    be assigned to specific individuals and groups. The selective_release_backend
-    flag MUST be enabled before this flag can be enabled. When this flag is enabled,
-    the UI and API that allow users to create module-type AssignmentOverrides will be
-    enabled, and thus the feature will be fully functional.
-  applies_to: SiteAdmin
-  environments:
-    ci:
-      state: allowed_on # enable for automated testings builds and local testing
-    development:
-      state: allowed_on # enable for local development
-
 differentiated_files:
   state: hidden
   display_name: Selective Release - Files
@@ -193,21 +177,15 @@ modules_student_module_selection:
     If enabled, teachers will be able to a single module to show on the modules page for students.
   applies_to: Account
 
+modules_requirements_allow_percentage:
+  state: hidden
+  applies_to: RootAccount
+  display_name: Module Requirements Allow Set By Percentage
+  description: Allows for Module Requirements to be set by percentage.
+
 calendar_events_api_pagination_enhancements:
   state: hidden
   display_name: Calendar Events API Pagination Enhancements
   description: |-
     Improves API pagination handling for assignment events on user calendar.
   applies_to: RootAccount
-
-assign_to_improved_search:
-  state: hidden
-  display_name: Improved Search for Assign to
-  description: |-
-    If enabled, searching for assignees will be possible before all assignee data is loaded.
-  applies_to: SiteAdmin
-  environments:
-    ci:
-      state: allowed_on
-    development:
-      state: allowed_on

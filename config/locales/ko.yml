@@ -106,9 +106,11 @@ ko:
       unexpectedDeleteError: "오류가 발생했습니다. 이번에는 삭제할 수 없습니다."
       updateSuccess: "성공적으로 업데이트함"
     length_error: "255글자보다 적어야 함"
+    title: "이 그룹의 이름"
   OutcomeView: 
     length_error: "255글자보다 적어야 함"
     mastery_error: "0보다 크거나 같아야 함"
+    title: "성과 이름"
   OutcomesDirectoryView: 
     flash: 
       error: "오류가 발생했습니다. 페이지를 새로 고친 후에 다시 시도하시기 바랍니다."
@@ -1400,6 +1402,7 @@ ko:
   adding_rss_feed_f1202567: "RSS 피드 추가하기"
   adjust_events_and_due_dates_879744fc: "행사와 기한 조정"
   admin_tools_9e2c9268: "관리 도구"
+  advanced_turnitin_settings_9ee84a38: "고급 Turnitin 설정"
   after_date_981cd41b: "%{date} 이후"
   after_last_attempt_c9168da2: "마지막 시도 이후"
   agenda_b010136d: 안건
@@ -1412,6 +1415,7 @@ ko:
       details: "세부 정보"
       login: 로그인
     no_text: "텍스트 없음"
+  alert_d2c8ef98: 알림
   alerts: 
     alert: 
       buttons: 
@@ -1471,6 +1475,8 @@ ko:
   allow_self_sign_up_7520f8c5: "직접 등록 허용"
   allows_the_duplication_of_calendar_events_7bb0d6c5: "달력 행사 복제 허용하기"
   always_3a59e701: 항상
+  an_alert_is_generated_for_each_student_that_meets__c36e3561: "알림은 모든 기준을 만족하는 각 학생에게 생성됩니다. 알림은 매일 체크해서 트리거한 문제가 해결될 때까지 학생, 교사, 계정 관리자에게 보냅니다."
+  an_alert_is_generated_for_each_student_that_meets__fcd175ac: "알림은 모든 기준을 만족하는 각 학생에게 생성됩니다. 알림은 매일 체크해서 트리거한 문제가 해결될 때까지 학생, 교사에게 보냅니다."
   an_integer_value_is_required_e073bd46: "정수 값이 필요함"
   analytics: 
     course: 
@@ -1788,6 +1794,7 @@ ko:
       save: 저장
       validating: "저장 중..."
       weight_groups: "과제 그룹을 바탕으로 최종 평가를 가중"
+    assignment_submit_success: "과제를 성공적으로 제출했습니다."
     assignments_list_right_side: 
       links: 
         manage_assignments: "과제 관리"
@@ -3656,6 +3663,7 @@ ko:
       add_prerequisite: "*%{module}*에 필수 조건 추가"
       buttons: 
         add_prerequisite: "필수 조건 추가"
+      estimated_duration_minutes: 분
       headings: 
         add_prerequisite: "%{name}에 필수 조건 추가"
         course_modules: "과목 모듈"
@@ -4149,6 +4157,7 @@ ko:
       turnitin_comments: "Turnitin 설명"
   course_members_are_free_to_join_9b2603d4: "과목 구성원은 자유롭게 참여"
   course_navigation_dd035109: "과목 탐색"
+  course_quota_8f7f74c: "과목 할당량"
   course_restore: 
     restore_error: "과목 복원을 시도하는 중에 오류가 발생했습니다. 과목이 복원되지 않았습니다."
   course_rubrics_881dcf0: "과목 루브릭"
@@ -4676,6 +4685,7 @@ ko:
     unauthorized: 
       invalid_link: "사용한 등록 링크가 더 이상 유효하지 않은 것으로 보입니다. 과목 강사에게 문의하여 올바르게 등록되었는지 확인하시기 바랍니다."
   courses_43204aae: 과목
+  create_an_eportfolio_1841e34a: "ePortfolio 만들기"
   create_course_9a69b32c: "과목 만들기"
   create_course_9dc5b61a: "과목 만들기"
   create_discussion_topics_8330d52b: "토론 주제 만들기"
@@ -4963,6 +4973,7 @@ ko:
       second: 초
       year: 년
   debugging_f98fcd74: 디버깅
+  default_account_quotas_e34112fd: "기본 계정 할당량"
   default_conference_title: "%{course_name} 회의"
   default_question_name: 문제
   default_question_text: "질문 텍스트"
@@ -5355,6 +5366,7 @@ ko:
   e_mail_only_2cc5e513: 이메일만
   ecollege_file_description: Ecollege
   ecollege_name: "Ecollege 변환기"
+  edit_alert_739bb0ba: "알림 편집"
   edit_and_delete_their_own_posts_f4f7cc6: "자신의 게시물을 편집하거나 삭제"
   edit_assignment_group_c04c4af0: "과제 그룹 편집"
   edit_c5fbea07: 편집
@@ -5379,6 +5391,7 @@ ko:
       criterion_long_description: "기준 상세 설명"
       find_existing_rubric: "기존 루브릭 찾기"
   edit_rubric_7d4d139d: "루브릭 편집"
+  edit_sections_7d0e4e34: "섹션 편집"
   edit_survey_b0d6890d: "설문 편집"
   edit_this_key_1ee53473: "이 키 편집"
   editor: 
@@ -6062,6 +6075,7 @@ ko:
     titles: 
       bookmark_search: "북마크 검색: %{service_name}"
   find_a_course_94301b4d: "과목 찾기"
+  find_course_or_group_a7de09a4: "과목이나 그룹 찾기"
   find_flickr_image_view: 
     find_cc_on_flickr: "Flickr에서 크리에이티브 커먼즈 이미지 찾기"
     search: 검색
@@ -6644,6 +6658,7 @@ ko:
     name_unavailable: "%{name}은(는) 이미 사용 중입니다."
     self_signup_for_courses: "자동 등록은 과목 그룹이나 커뮤니티를 대상으로만 사용할 수 있음"
   group_files_82e5dcdb: "그룹 파일"
+  group_id_b0f6af89: "그룹 ID"
   group_membership: 
     errors: 
       group_full: "그룹이 꽉 찼습니다."
@@ -6651,6 +6666,7 @@ ko:
   group_name_b69c144: "그룹 이름"
   group_name_group_calendar_7f10e0ed: "%{group_name} - 그룹 달력"
   group_pages_656556f3: "그룹 페이지"
+  group_quota_290dbc6b: "그룹 할당량"
   group_set_4d1e7b06: "그룹 집합"
   group_settings: 
     invitation_sent: "초대 보냄"
@@ -6928,6 +6944,7 @@ ko:
         randomly_assign_students_dialog: "이는 할당되지 않은 학생을 기존 학생 그룹에 가능한 한 고르게 임의로 할당합니다."
       self_signup_help: 
         about_self_signup_groups: "직접 등록 그룹에 대한 정보"
+        self_signup_deadline_description: "학생이 직접 등록할 수 있는 그룹의 집합을 만들 수 있습니다. 학생은 집합에 있는 하나의 그룹에만 속할 수 있지만, 이러한 방식으로 교사 대신 학생들이 스스로 그룹을 구성할 수 있습니다. 이 옵션을 사용하면 학생이 하나의 그룹에서 다른 그룹으로 직접 이동할 수 있습니다."
         self_signup_description: "학생이 직접 등록할 수 있는 그룹의 집합을 만들 수 있습니다. 학생은 집합에 있는 하나의 그룹에만 속할 수 있지만, 이러한 방식으로 교사 대신 학생들이 스스로 그룹을 구성할 수 있습니다. 이 옵션을 사용하면 학생이 하나의 그룹에서 다른 그룹으로 직접 이동할 수 있습니다."
     member: 
       one: "멤버 %{count}명"
@@ -7435,6 +7452,7 @@ ko:
       ellipsis: "..."
       quoted_text_toggle: "인용된 텍스트 표시"
       word_separator: " "
+  license_bdede4fb: 라이선스
   license_help: 
     content_license_help: "내용 라이선싱 도움말"
   link_7262adec: Link
@@ -7452,6 +7470,7 @@ ko:
     titles: 
       link_to_student: "학생에게 연결"
   link_only_995966e: 링크만
+  link_to_students_91edf7ea: "학생에게 연결"
   linked_assignment_message: "과제 '%{title}'와(과) 연결됨"
   linked_discussion_topic_message: "토론 주제'%{title}'와(과) 연결됨"
   linked_quiz_message: "퀴즈 '%{title}'와(과) 연결됨"
@@ -7592,6 +7611,7 @@ ko:
   manage_profile_pictures_40c958ce: "프로필 사진 관리"
   manual_entry_e4a4f99a: "수동 항목"
   manually_mark_posts_as_read_afa5d035: "게시물을 읽은 것으로 표시"
+  manually_settable_quotas_ea3759e7: "수동으로 설정할 수 있는 할당량"
   mark_all_as_read_8f3bdf57: "모두 읽음으로 표시"
   mark_all_as_unread_a435be3d: "모두 읽지 않음으로 표시"
   mark_as_read_47ec83dd: "읽음으로 표시"
@@ -7677,6 +7697,7 @@ ko:
   media_objects: 
     media_objects_not_configured: "미디어 개체가 구성되지 않음"
   meets_expectations_bb179565: "기대를 만족함"
+  megabytes_885404ef: 메가바이트
   members_af25c21d: 구성원
   members_are_free_to_join_defa5929: "구성원이 자유롭게 참여"
   membership_by_invitation_only_9bc27199: "초대에 의해서만 참여"
@@ -9507,6 +9528,7 @@ ko:
     where_to_move: "*%{name}*을(를) 어디로 이동하시겠습니까?"
   move_dialog_select: 
     move_to_end: "-- 아래에 --"
+  move_from_ef79aa53: "다음 요일에서"
   move_name_to_a_new_group_acabed4e: "%{name}을(를) 새 그룹으로 이동"
   move_to_1c208ae5: "다음으로 이동..."
   multi_factor_authentication_1a6b3b3d: "다단계 인증"
@@ -9568,6 +9590,7 @@ ko:
   no_migration_file: "내용 마이그레이션을 위해 필요한 파일입니다."
   no_password_was_given_472222e5: "암호가 없음"
   no_points_possible_368669d: "가능한 점수 없음"
+  no_preview_available_e8e71199: "미리 보기 없음"
   no_results_3cda4e72: "결과 없음"
   no_results_found_2ace1494: "찾은 결과 없음"
   no_results_found_58717065: "결과 없음"
@@ -9575,6 +9598,7 @@ ko:
   no_students_have_taken_the_quiz_yet_e667644b: "어떤 학생도 이 퀴즈를 치르지 않음"
   no_students_have_taken_the_survey_yet_d378cd35: "어떤 학생도 이 설문을 치르지 않음"
   no_submission_fb131a40: "제출물 없음"
+  no_teacher_interaction_de8d91bc: "교사 상호 작용 없음"
   no_time_limit_for_long_running_conferences_d49fdfad: "시간 제한 없음(장기 회의)"
   not_deleted_2a7f63ef: "(삭제 안 됨)"
   not_installed_37a21a76: "설치 안 됨"
@@ -12062,6 +12086,7 @@ ko:
   remove_edf2b8a7: (제거)
   remove_email_address_b1820820: "이메일 주소 제거하기"
   remove_f47dc62a: 제거
+  remove_from_course_6fb47aee: "과목에서 제거"
   remove_media_comment_f4afdb4b: "미디어 설명 제거"
   remove_name_from_group_487cce74: "%{name}을(를) 그룹에서 제거"
   remove_row_c198da5a: "행 삭제"
@@ -12079,6 +12104,7 @@ ko:
   reports_1b9ab7a7: 보고서
   request_id_1499afb0: "요청 ID"
   required_5f7ef8c0: 필수
+  resend_invitation_486bd513: "초대 다시 보내기"
   reset_this_contact_method_s_bounce_count_3845ecf4: "이 연락 방법의 응답 횟수 재설정하기"
   restore_6d523f1d: 복원
   restore_courses_182e162e: "과목 복원"
@@ -12280,6 +12306,7 @@ ko:
   run_report_743fdf5f: "보고서 실행"
   running_totals_d6f45b6b: "누적 합계"
   save_11a80ec3: 저장
+  save_alert_b64f9fa3: "알림 저장"
   save_key_b4dede06: "키 저장"
   save_login_bba1272: "로그인 저장"
   save_settings_cafe79a5: "설정 저장"
@@ -12436,6 +12463,7 @@ ko:
         current_enrollments: "현재 등록"
         decrosslist_section: "섹션 교차 나열 해제"
   sections_94731e51: "모든 섹션"
+  select_a_course_40bc3229: "과목 선택"
   select_a_log_type_to_search_247fc6b4: "검색하려는 로그 유형을 선택하십시오."
   select_calendars_d5fa50b6: "달력 선택하기"
   select_content: "내용 선택"
@@ -13259,6 +13287,7 @@ ko:
   some_settings_have_been_administratively_locked_9e3ee880: "일부 설정은 관리를 위해 잠겨있습니다."
   some_systems_recycle_their_ids_for_each_new_export_884b8e46: "어떤 시스템은 새로 내보내기를 할 때마다 ID를 재활용합니다. 그 결과, 내보낸 다른 문제 은행이 같은 ID를 갖게 됩니다. 평가 자료를 잃지 않으려면 ID를 무시하고 개체를 다른 것으로 처리해야 합니다. 이 옵션을 선택하면 이러한 안전 기능을 사용하지 않고 같은 ID를 가진 기존 평가 자료를 덮어쓰게 됩니다."
   someone_bbbc538b: 아무개
+  something_went_wrong_updating_the_user_s_student_l_1047109c: "사용자의 학생 링크 업데이트 중에 오류가 발생했습니다. 다시 시도해 주시기 바랍니다."
   sort_by_e75f9e3e: "정렬 조건"
   source_c377a469: 원본
   speed_grader: 
@@ -13542,9 +13571,11 @@ ko:
   submitted_318fad53: 제출됨
   submitted_b37e2ff0: 제출일
   submitted_d5ba370a: "제출:"
+  submitting_b90fac62: "제출 중..."
   subscribe_4b301fb7: 구독
   subscribed_fe74d22a: 구독함
   substitution_713c65b9: 대체
+  suggestions_b8b03b9d: "제안:"
   support: 
     array: 
       last_word_connector: ", "
@@ -13996,6 +14027,8 @@ ko:
   unauthorized: "권한이 없음"
   underline_all_links_description: "링크 밑줄 치기는 탐색 메뉴, 대시보드, 페이지 사이드바에 있는 링크들을 *밑줄 친* 문자열로 표시합니다. 이 기능은  사용자가 서식 있는 내용 편집기에서 생성한 항목 링크들에 적용되는 기능이 아닙니다. 그것들은 모든 사용자에게 항상 밑줄 친 문자열로 표시합니다."
   underline_links_e7cf9b4f: "링크 밑줄 치기"
+  ungraded_submissions_count_63fcf6d1: "평가 안 된 제출물 (개수)"
+  ungraded_submissions_time_bafaa609: "평가 안 된 제출물 (시간)"
   ungraded_survey_ad7de790: "평가 안 된 설문"
   unknown: "알 수 없음"
   unknown_47a3b725: "알 수 없음"
@@ -14017,7 +14050,9 @@ ko:
   update_details_6abfed16: "세부 정보 업데이트"
   update_module_b984c2e5: "모듈 업데이트"
   update_password_4bc5cb1f: "암호 업데이트"
+  update_quota_81381226: "할당량 업데이트"
   update_settings_9b422d0f: "설정 업데이트"
+  updating_73d0718c: "업데이트 중..."
   updating_user_details_b8520b3e: "사용자 세부 정보 업데이트 중..."
   upload_8b403d05: 업로드
   upload_a_picture_9f5f6e3c: "사진 업로드"
@@ -14170,6 +14205,7 @@ ko:
       profile: 프로필
       settings: 설정
   user_profile_picture_46bffbc7: "사용자 프로필 사진"
+  user_quota_12cb58b7: "사용자 할당량"
   user_s_settings_d65644b4: "%{user}의 설정"
   user_service: 
     descriptions: 
@@ -14456,6 +14492,7 @@ ko:
   view_grades_8d3bae6c: "평점 보기"
   view_grades_for_name_45aeb2f2: "%{name} 평점 보기"
   view_notifications_6aea09a2: "알림 보기"
+  view_registered_services_6c8cd301: "등록된 서비스 보기"
   view_rubric_d71cce10: "루브릭 보기"
   viewsContextModules: 
     context_module: 
@@ -14491,6 +14528,7 @@ ko:
   welcome_to_your_courses_to_customize_the_list_of_c_f95e4b2: "나의 과목에 오신 것을 환영합니다! 과목들의 목록을 편집하려면 \"모든 과목\"을 클릭하고 표시할 과목들에 별표 표시를 하십시오."
   what_should_the_csv_file_look_like_985a59ac: "CSV 파일은 어떻게 보입니까?"
   what_would_you_like_to_do_next_2835397e: "다음에 어떤 작업을 하시겠습니까?"
+  when_an_observer_is_linked_to_a_student_they_have__489e2b71: "감독자를 학생에게 연결하면 학생의 평점과 과목 상호 작용을 액세스할 수 있습니다."
   which_login_to_change_4707fbc6: "변경하려는 로그인"
   widget: 
     upload_media_track_form: 

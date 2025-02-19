@@ -607,7 +607,11 @@ class UsersController < ApplicationController
     courses = course_ids.present? ? api_find_all(Course, course_ids) : nil
 
     @stream_items = @user.cached_recent_stream_items(contexts: courses)
+    is_student = @user.roles(@domain_root_account).all? { |role| ["student", "user"].include?(role) }
     if stale?(etag: @stream_items)
+      if is_student
+        @stream_items = @stream_items.reject { |i| i&.course&.horizon_course? }
+      end
       render partial: "shared/recent_activity", layout: false
     end
   end
@@ -888,7 +892,6 @@ class UsersController < ApplicationController
       @courses.select! do |c|
         c.grants_any_right?(
           @current_user,
-          :manage_content,
           *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS
         )
       end
@@ -1936,7 +1939,7 @@ class UsersController < ApplicationController
         format.json do
           if user.set_preference(:custom_colors, colors)
             enrollment_types_tags = user.participating_enrollments.pluck(:type).uniq.map { |type| "enrollment_type:#{type}" }
-            InstStatsd::Statsd.increment("user.set_custom_color", tags: enrollment_types_tags)
+            InstStatsd::Statsd.distributed_increment("user.set_custom_color", tags: enrollment_types_tags)
             render(json: { hexcode: colors[context.asset_string] })
           else
             render(json: user.errors, status: :bad_request)
@@ -2179,7 +2182,11 @@ class UsersController < ApplicationController
     end
 
     if @user.grants_right?(@current_user, :manage_user_details)
-      managed_attributes.push(:time_zone, :locale, :event)
+      managed_attributes.push(:event)
+    end
+
+    if @user.grants_right?(@current_user, :update_profile)
+      managed_attributes.push(:time_zone, :locale)
     end
 
     if @user.grants_right?(@current_user, :update_avatar)

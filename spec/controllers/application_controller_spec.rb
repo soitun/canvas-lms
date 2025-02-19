@@ -19,7 +19,6 @@
 #
 
 require_relative "../spec_helper"
-require_relative "../lti_1_3_spec_helper"
 
 RSpec.describe ApplicationController do
   context "group 1" do
@@ -949,7 +948,7 @@ RSpec.describe ApplicationController do
         let(:course) { course_model }
 
         before do
-          allow(course).to receive(:grants_any_right?).and_return true
+          allow(course).to receive(:grants_right?).and_return true
           controller.instance_variable_set(:@context, course)
         end
 
@@ -1177,7 +1176,7 @@ RSpec.describe ApplicationController do
             end
             let_once(:account) { Account.default }
 
-            include_context "lti_1_3_spec_helper"
+            include_context "key_storage_helper"
 
             before do
               tool.developer_key = developer_key
@@ -1242,7 +1241,7 @@ RSpec.describe ApplicationController do
 
               it 'sets the "login_hint" to the current user lti id' do
                 subject
-                expect(assigns[:lti_launch].params["login_hint"]).to eq Lti::Asset.opaque_identifier_for(user)
+                expect(assigns[:lti_launch].params["login_hint"]).to eq Lti::V1p1::Asset.opaque_identifier_for(user)
               end
 
               it "does not use the oidc_initiation_url as the resource_url" do
@@ -2770,10 +2769,10 @@ RSpec.describe ApplicationController do
           %i[
             calendar_contexts_limit
             open_registration
-            inbox_auto_response
-            inbox_signature_block
-            inbox_auto_response_for_students
-            inbox_signature_block_for_students
+            enable_inbox_signature_block
+            disable_inbox_signature_block_for_students
+            enable_inbox_auto_response
+            disable_inbox_auto_response_for_students
           ]
         )
       end
@@ -3313,5 +3312,13 @@ RSpec.describe ApplicationController, "#set_js_env" do
         )
       end
     end
+  end
+end
+
+RSpec.describe ApplicationController, "#cached_js_env_account_features" do
+  it "includes new feature flags" do
+    flags = controller.cached_js_env_account_features
+
+    expect(flags).to have_key(:course_pace_pacing_with_mastery_paths)
   end
 end

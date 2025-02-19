@@ -79,10 +79,10 @@ class AssignmentOverride < ActiveRecord::Base
         is_non_collaborative = record.set.non_collaborative?
         valid_group_category_id = record.assignment.effective_group_category_id
 
-        if is_non_collaborative
-          record.errors.add :set, "not allowed to assign to assignment" if !record.assignment.context.account.settings[:allow_assign_to_differentiation_tags] || valid_group_category_id
-        else
-          record.errors.add :set, "not from assignment's group category" unless record.set.group_category_id == valid_group_category_id
+        if is_non_collaborative && !record.assignment.context.account.settings[:allow_assign_to_differentiation_tags]
+          record.errors.add :set, "not allowed to assign to assignment"
+        elsif !is_non_collaborative && record.set.group_category_id != valid_group_category_id
+          record.errors.add :set, "not from assignment's group category"
         end
       when Course
         record.errors.add :set, "not from assignment's course" unless record.set.id == record.assignment.context_id

@@ -64,14 +64,14 @@ $(document).ready(function () {
 
   const renderFormErrors = (formErrors, shouldFocus = false)=>{
     formErrors.forEach((formError)=> {
-      const container = $edit_section_form.find(formError.containerId)
-      const errorsContainer = $edit_section_form.find(formError.errorsContainerId)[0]
+      const container = $(formError.containerId)
+      const errorsContainer = $(formError.errorsContainerId)[0]
       if (container) {
         container.css({
           outline: '1px solid red',
           borderRadius: '3px',
         })
-        if (shouldFocus){
+        if (shouldFocus && document.activeElement !== container){
           container.focus()
         }
       }
@@ -115,6 +115,79 @@ $(document).ready(function () {
     return nameErrors
   }
 
+  const validateSectionFormDates = () => {
+    const sectionStartAt =  $('.datetime_suggest')[0].textContent
+    const sectionEndAt = $('.datetime_suggest')[1].textContent
+    const dateErrors = []
+
+    if(sectionStartAt && sectionEndAt && (new Date(sectionStartAt) > new Date(sectionEndAt) ) ){
+      const error = {}
+      error.containerId = '#course_section_end_at'
+      error.errorsContainerId = '#course_section_end_at_errors'
+      error.errorText = I18n.t('End date cannot be before start date')
+      dateErrors.push(error)
+    }
+    return dateErrors
+  }
+
+  const validateCrossListForm = courseName => {
+    const courseLookupValue = $('#course_autocomplete_id').val()
+    const autocompleteValue = $('#course_autocomplete_id_lookup').val()
+    const courseIdValue = $("#course_id").val()
+    const error = {}
+    clearCrossListFormErrors()
+    if (courseIdValue && !courseLookupValue && !autocompleteValue) {
+        error.containerId = '#course_id'
+        error.errorsContainerId = '#course_id_errors'
+        error.errorText = I18n.t(
+          'errors.course_not_authorized_for_crosslist',
+          '%{course_name} not authorized for cross-listing',
+          {course_name: courseName ||
+            I18n.t('default_course_name', 'Course ID "%{course_id}"', {course_id: $('#course_id').val()})
+          },
+        )
+        renderFormErrors([error], true)
+    }
+    else if (courseName && !courseLookupValue) {
+      error.containerId = '#course_autocomplete_id_lookup'
+      error.errorsContainerId = '#course_autocomplete_id_lookup_errors'
+      error.errorText = I18n.t(
+        'errors.course_not_authorized_for_crosslist',
+        '%{course_name} not authorized for cross-listing',
+        {course_name: courseName},
+      )
+      renderFormErrors([error], true)
+      $('#sis_id_holder,#account_name_holder').hide()
+      $('#course_autocomplete_name').text('')
+
+    }
+    else if (!courseLookupValue && !courseName && !courseIdValue) {
+      error.containerId = '#course_autocomplete_id_lookup'
+      error.errorsContainerId = '#course_autocomplete_id_lookup_errors'
+      error.errorText = I18n.t(
+        'errors.missing_target_course_for_crosslist',
+        'Not a valid course name',
+      )
+      renderFormErrors([error], true)
+    }
+    else if (courseLookupValue) {
+      return true
+    }
+
+    return false
+  }
+
+  const clearCrossListFormErrors = () => {
+    errorRoots['#course_autocomplete_id_lookup']?.unmount()
+      errorRoots['#course_autocomplete_id_lookup'] = null
+      errorRoots['#course_id']?.unmount()
+      errorRoots['#course_id'] = null
+      $("#course_autocomplete_id_lookup, #course_id").css({
+        outline: '',
+        borderRadius: '',
+      })
+  }
+
   // remove course_section_name errors if you begin to type.
   $edit_section_form.find('#course_section_name').on("input", function (e) {
     const container = $(this)
@@ -147,10 +220,40 @@ $(document).ready(function () {
     }
   })
 
+  $edit_section_form.find('.datetime_field').on("input", function (e) {
+    const container = $('#course_section_end_at')
+      if (container) {
+        container.css({
+          outline: '',
+          borderRadius: '',
+        })
+      }
+      errorRoots['#course_section_end_at']?.unmount()
+      errorRoots['#course_section_end_at'] = null
+  })
+
+  $edit_section_form.find('.datetime_field').blur(function (e) {
+    const validateFormErrors = validateSectionFormDates()
+    if(validateFormErrors.length > 0){
+      renderFormErrors(validateFormErrors)
+    }
+    else {
+      const container = $('#course_section_end_at')
+      if (container) {
+        container.css({
+          outline: '',
+          borderRadius: '',
+        })
+      }
+      errorRoots['#course_section_end_at']?.unmount()
+      errorRoots['#course_section_end_at'] = null
+    }
+  })
+
   $edit_section_form
     .formSubmit({
       beforeSubmit(data) {
-        const validateFormErrors = [...validateSectionFormName()];
+        const validateFormErrors = [...validateSectionFormName(), ...validateSectionFormDates()];
         if (validateFormErrors.length > 0){
           renderFormErrors(validateFormErrors, true)
           return false
@@ -236,15 +339,15 @@ $(document).ready(function () {
       modal: true,
       zIndex: 1000,
     })
-    $('#crosslist_course_form .submit_button').prop('disabled', true)
     $('#course_autocomplete_id_lookup').val('')
     $('#course_id').val('').change()
+    clearCrossListFormErrors()
   })
   $('#course_autocomplete_id_lookup')
     .autocomplete({
       source: $('#course_autocomplete_url').attr('href'),
       select(event, ui) {
-        $('#course_id').val('')
+        $('#course_id').val('').trigger('input')
         $('#crosslist_course_form').triggerHandler('id_entered', ui.item)
       },
     })
@@ -281,6 +384,35 @@ $(document).ready(function () {
     event.preventDefault()
     $(this).change()
   })
+  $('#course_autocomplete_id_lookup').on('input', function (event) {
+    const container = $(this)
+    if (container) {
+      container.css({
+        outline: '',
+        borderRadius: '',
+      })
+    }
+    $("#course_autocomplete_id").val('')
+    $("#course_id").val('')
+    clearCrossListFormErrors()
+  }).on('blur', function (event) {
+    const CourseLookupValue = $('#course_autocomplete_id_lookup').val()
+    if (CourseLookupValue) {
+      validateCrossListForm()
+    }
+  })
+
+  $('#course_id').on('input', function (event) {
+    const container = $(this)
+    if (container) {
+      container.css({
+        outline: '',
+        borderRadius: '',
+      })
+    }
+    clearCrossListFormErrors()
+  })
+
   $('#course_id').bind('change', function () {
     $('#course_autocomplete_id_lookup').val('')
     $('#crosslist_course_form').triggerHandler('id_entered', {id: $(this).val()})
@@ -293,7 +425,7 @@ $(document).ready(function () {
     if (course.id == latest_course_id) {
       return
     }
-    $('#crosslist_course_form .submit_button').prop('disabled', true)
+
     $('#course_autocomplete_id').val('')
     if (!course.id) {
       $('#sis_id_holder,#account_name_holder').hide()
@@ -334,14 +466,14 @@ $(document).ready(function () {
           $('#account_name_holder').showIf(template_data.account_name)
 
           $('#course_autocomplete_id').val(data.course.id)
-          $('#crosslist_course_form .submit_button').prop('disabled', false)
         } else {
           const errorText = I18n.t(
             'errors.course_not_authorized_for_crosslist',
             '%{course_name} not authorized for cross-listing',
             {course_name: course.name},
           )
-          $('#course_autocomplete_name').text(errorText)
+          validateCrossListForm(course.name)
+          $('#course_autocomplete_name').text('')
           $.screenReaderFlashError(errorText)
           $('#sis_id_holder,#account_name_holder').hide()
         }
@@ -352,5 +484,11 @@ $(document).ready(function () {
         )
       },
     )
+  })
+  $("#crosslist_course_form button[type='submit']").on('click', function(e){
+    e.preventDefault()
+    if (validateCrossListForm()) {
+      $("#crosslist_course_form").trigger('submit')
+    }
   })
 })

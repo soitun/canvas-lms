@@ -45,6 +45,10 @@ import {GradedDiscussionOptions} from '../DiscussionOptions/GradedDiscussionOpti
 import {NonGradedDateOptions} from '../DiscussionOptions/NonGradedDateOptions'
 import {AnonymousSelector} from '../DiscussionOptions/AnonymousSelector'
 import {
+  DEFAULT_SORT_ORDER,
+  DEFAULT_SORT_ORDER_LOCKED,
+  DEFAULT_EXPANDED_STATE,
+  DEFAULT_EXPANDED_LOCKED,
   DiscussionDueDatesContext,
   defaultEveryoneOption,
   defaultEveryoneElseOption,
@@ -53,6 +57,7 @@ import {
   REPLY_TO_TOPIC,
   REPLY_TO_ENTRY,
 } from '../../util/constants'
+import {ViewSettings} from '../DiscussionOptions/ViewSettings'
 
 import {AttachmentDisplay} from '@canvas/discussions/react/components/AttachmentDisplay/AttachmentDisplay'
 import {responsiveQuerySizes} from '@canvas/discussions/react/utils'
@@ -334,6 +339,19 @@ function DiscussionTopicForm({
     !!currentDiscussionTopic?.assignment?.peerReviews?.intraReviews || false,
   )
 
+  const [expanded, setExpanded] = useState(
+    currentDiscussionTopic?.expanded ?? DEFAULT_EXPANDED_STATE,
+  )
+  const [expandedLocked, setExpandedLocked] = useState(
+    currentDiscussionTopic?.expandedLocked ?? DEFAULT_EXPANDED_LOCKED,
+  )
+  const [sortOrder, setSortOrder] = useState(
+    currentDiscussionTopic?.sortOrder ?? DEFAULT_SORT_ORDER,
+  )
+  const [sortOrderLocked, setSortOrderLocked] = useState(
+    currentDiscussionTopic?.sortOrderLocked ?? DEFAULT_SORT_ORDER_LOCKED,
+  )
+
   const [lastShouldPublish, setLastShouldPublish] = useState(false)
   const [shouldShowMissingSectionsWarning, setShouldShowMissingSectionsWarning] = useState(false)
 
@@ -378,7 +396,7 @@ function DiscussionTopicForm({
 
   useEffect(() => {
     // Expects to force the focus the errors on re-render once
-    if (shouldForceFocusAfterRenderRef.current && ENV.FEATURES.selective_release_ui_api) {
+    if (shouldForceFocusAfterRenderRef.current) {
       const sectionViewRef = document.getElementById(
         'manage-assign-to-container',
       )?.reactComponentInstance
@@ -458,6 +476,7 @@ function DiscussionTopicForm({
     shouldShowTodoSettings,
     shouldShowPostToSectionOption,
     shouldShowAnonymousOptions,
+    shouldShowViewSettings,
     shouldShowAnnouncementOnlyOptions,
     shouldShowGroupOptions,
     shouldShowGradedDiscussionOptions,
@@ -542,16 +561,14 @@ function DiscussionTopicForm({
       todoDate: addToTodo ? todoDate : null,
       allowRating: shouldShowLikingOption ? allowLiking : false,
       onlyGradersCanRate: shouldShowLikingOption ? onlyGradersCanLike : false,
+      expanded,
+      expandedLocked,
+      sortOrder,
+      sortOrderLocked,
       ...(shouldShowUsageRightsOption && {usageRightsData}),
     }
 
-    if (
-      !isGraded &&
-      ENV.FEATURES?.selective_release_ui_api &&
-      !isAnnouncement &&
-      ENV.context_type !== 'Group' &&
-      !isGroupDiscussion
-    ) {
+    if (!isGraded && !isAnnouncement && ENV.context_type !== 'Group' && !isGroupDiscussion) {
       delete payload.specificSections
       Object.assign(
         payload,
@@ -562,12 +579,7 @@ function DiscussionTopicForm({
           masteryPathsOption,
         ),
       )
-    } else if (
-      isGraded &&
-      ENV.FEATURES?.selective_release_ui_api &&
-      !isGroupDiscussion &&
-      ENV.context_type !== 'Group'
-    ) {
+    } else if (isGraded && !isGroupDiscussion && ENV.context_type !== 'Group') {
       // Well, its fairly lame to call prepUngraded inside if isGraded, but availableUntil/From is ignored by selective release, so we need to fetch it somehow.
       const {delayedPostAt, lockAt} = prepareUngradedDiscussionOverridesPayload(
         assignedInfoList,
@@ -655,8 +667,7 @@ function DiscussionTopicForm({
 
     if (
       // Not validate override dates for announcements or ungraded group discussions
-      !(isAnnouncement || (isGroupDiscussion && !isGraded) || ENV?.context_type === 'Group') &&
-      ENV.FEATURES.selective_release_ui_api
+      !(isAnnouncement || (isGroupDiscussion && !isGraded) || ENV?.context_type === 'Group')
     ) {
       const aDueDateMissing = assignedInfoList.some(assignee => !assignee.dueDate)
       const postToSisEnabled = isGraded && postToSis && ENV.DUE_DATE_REQUIRED_FOR_ACCOUNT
@@ -682,15 +693,13 @@ function DiscussionTopicForm({
     }
 
     setTimeout(() => {
-      if (ENV.FEATURES.selective_release_ui_api) {
-        if (!formIsValid) {
-          // If there are errors visible already don't force the focus
-          if (hasAfterRenderIssue) {
-            shouldForceFocusAfterRenderRef.current = true
-          } else {
-            // Focus errors that are already visible
-            sectionViewRef?.focusErrors()
-          }
+      if (!formIsValid) {
+        // If there are errors visible already don't force the focus
+        if (hasAfterRenderIssue) {
+          shouldForceFocusAfterRenderRef.current = true
+        } else {
+          // Focus errors that are already visible
+          sectionViewRef?.focusErrors()
         }
       }
       setIsSubmitting(false)
@@ -785,7 +794,7 @@ function DiscussionTopicForm({
   const renderAvailabilityOptions = useCallback(() => {
     if (isGraded && !isAnnouncement) {
       return (
-        <View as="div" data-testid="assignment-settings-section">
+        <View as="div" data-testid="assignment-assign-to-section">
           <DiscussionDueDatesContext.Provider value={assignmentDueDateContext}>
             <GradedDiscussionOptions
               assignmentGroups={assignmentGroups}
@@ -813,10 +822,10 @@ function DiscussionTopicForm({
           </DiscussionDueDatesContext.Provider>
         </View>
       )
-    } else if (!isGroupDiscussion && !isAnnouncement && ENV.FEATURES?.selective_release_ui_api) {
+    } else if (!isGroupDiscussion && !isAnnouncement) {
       return (
-        <View as="div" data-testid="assignment-settings-section">
-          <Text weight="bold">{I18n.t('Assign Access')}</Text>
+        <View as="div" data-testid="discussion-assign-to-section">
+          <Text size="large">{I18n.t('Assign Access')}</Text>
           <DiscussionDueDatesContext.Provider value={assignmentDueDateContext}>
             <ItemAssignToTrayWrapper />
           </DiscussionDueDatesContext.Provider>
@@ -1026,7 +1035,9 @@ function DiscussionTopicForm({
               </Flex.Item>
             </Flex>
           )}
-          <Text size="large">{I18n.t('Options')}</Text>
+          <Text size="large" as="h2">
+            {I18n.t('Options')}
+          </Text>
           {shouldShowAnonymousOptions && (
             <AnonymousSelector
               discussionAnonymousState={discussionAnonymousState}
@@ -1122,6 +1133,7 @@ function DiscussionTopicForm({
                     value="checkpoints"
                     inline={true}
                     checked={isCheckpoints}
+                    disabled={currentDiscussionTopic?.assignment?.hasSubmittedSubmissions}
                     onChange={() => {
                       setIsCheckpoints(!isCheckpoints)
                       setIsThreaded(true)
@@ -1337,6 +1349,18 @@ function DiscussionTopicForm({
                 {I18n.t('Grading and Groups are not supported in Anonymous Discussions.')}
               </Alert>
             </View>
+          )}
+          {shouldShowViewSettings && (
+            <ViewSettings
+              expanded={expanded}
+              expandedLocked={expandedLocked}
+              sortOrder={sortOrder}
+              sortOrderLocked={sortOrderLocked}
+              setExpanded={setExpanded}
+              setExpandedLocked={setExpandedLocked}
+              setSortOrder={setSortOrder}
+              setSortOrderLocked={setSortOrderLocked}
+            />
           )}
           {shouldShowAvailabilityOptions && renderAvailabilityOptions()}
           {(!isAnnouncement || !ENV.ASSIGNMENT_EDIT_PLACEMENT_NOT_ON_ANNOUNCEMENTS) &&

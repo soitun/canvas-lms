@@ -59,6 +59,9 @@ export interface CoursePaceItem {
   readonly module_item_id: string
   readonly module_item_type: string
   readonly published: boolean
+  readonly submittable: boolean
+  readonly submitted_at?: string | null
+  readonly assignment_id?: string | null
   compressed_due_date?: string
 }
 
@@ -126,6 +129,15 @@ export interface Progress {
   readonly context_id: string
 }
 
+export interface CourseReport {
+  readonly id?: string
+  readonly report_type: string
+  readonly course_id: string
+  readonly file_url?: string
+  readonly parameters?: any
+  readonly status?: string
+}
+
 /* Redux state types */
 
 export type EnrollmentsState = Enrollments
@@ -138,6 +150,13 @@ export type CategoryErrors = {[category: string]: string}
 export type OriginalState = {
   coursePace: CoursePace
   blackoutDates: BlackoutDate[]
+}
+
+export type MasteryPathsData = {
+  isCyoeAble?: boolean
+  isTrigger?: boolean,
+  isReleased?: boolean,
+  releasedLabel?: string
 }
 
 export interface UIState {
@@ -202,6 +221,7 @@ export interface PaceContext {
   associated_section_count: number
   associated_student_count: number
   applied_pace: Pace | null
+  on_pace: boolean | null
 }
 
 export interface PaceContextProgress {

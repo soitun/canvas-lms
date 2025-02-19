@@ -16,21 +16,21 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useContext, useMemo, useState} from 'react'
+import React, {forwardRef, useContext, useImperativeHandle, useMemo, useState} from 'react'
 import CanvasMultiSelect from '@canvas/multi-select/react'
 import {View} from '@instructure/ui-view'
 import {DiscussionManagerUtilityContext} from '../../utils/constants'
 import {useScope as createI18nScope} from '@canvas/i18n'
-import PropTypes from '@canvas/permissions/react/propTypes'
+import PropTypes from 'prop-types'
 
 const I18n = createI18nScope('discussion_posts')
 
 // TODO: Translate the language co> ntrols into the canvas target locale.
-export const TranslationControls = props => {
+export const TranslationControls = forwardRef((props, ref) => {
   const {translationLanguages, setTranslateTargetLanguage} = useContext(
     DiscussionManagerUtilityContext,
   )
-  const [input, setInput] = useState(translationLanguages.current?.[0]?.name || '')
+  const [input, setInput] = useState('')
   const [selected, setSelected] = useState(null)
 
   const handleSelect = selectedArray => {
@@ -61,14 +61,24 @@ export const TranslationControls = props => {
     )
   }, [translationLanguages, input])
 
+  const reset = () => {
+    setInput('')
+    setSelected(null)
+  }
+
+  useImperativeHandle(ref, () => ({
+    reset,
+  }))
+
   return (
-    <View as="div" margin="x-small 0 0">
+    <View ref={ref} as="div" margin="x-small 0 0">
       <CanvasMultiSelect
         label={I18n.t('Translate to')}
         onChange={handleSelect}
         inputValue={input}
         onInputChange={e => setInput(e.target.value)}
         width="360px"
+        placeholder={I18n.t('Language')}
       >
         {filteredLanguages.map(({id, name}) => (
           <CanvasMultiSelect.Option key={id} id={id} value={id} isSelected={id === selected}>
@@ -78,7 +88,7 @@ export const TranslationControls = props => {
       </CanvasMultiSelect>
     </View>
   )
-}
+})
 
 TranslationControls.propTypes = {
   setTranslationLanguage: PropTypes.func,

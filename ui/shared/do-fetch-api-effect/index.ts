@@ -40,6 +40,7 @@ function constructRelativeUrl({
 // https://fetch.spec.whatwg.org/#requestinit
 interface RequestInit {
   signal?: AbortSignal
+  cache?: RequestCache
 }
 
 export type DoFetchApiOpts = {
@@ -57,6 +58,15 @@ export type DoFetchApiResults<T> = {
   json?: T
   response: Response
   link?: Links
+}
+
+export class FetchApiError extends Error {
+  response: Response
+
+  constructor(message: string, response: Response) {
+    super(message)
+    this.response = response
+  }
 }
 
 export default async function doFetchApi<T = unknown>({
@@ -95,11 +105,10 @@ export default async function doFetchApi<T = unknown>({
     credentials,
   })
   if (!response.ok) {
-    const err = new Error(
+    throw new FetchApiError(
       `doFetchApi received a bad response: ${response.status} ${response.statusText}`,
+      response,
     )
-    Object.assign(err, {response}) // in case anyone wants to check it for something
-    throw err
   }
   const linkHeader = response.headers.get('Link')
   const contentType = response.headers.get('Content-Type') ?? ''

@@ -367,8 +367,6 @@ class ApplicationController < ActionController::Base
     explicit_latex_typesetting
     media_links_use_attachment_id
     permanent_page_links
-    selective_release_ui_api
-    assign_to_improved_search
     enhanced_course_creation_account_fetching
     instui_for_import_page
     multiselect_gradebook_filters
@@ -378,6 +376,8 @@ class ApplicationController < ActionController::Base
     courses_popout_sisid
     dashboard_graphql_integration
     discussion_checkpoints
+    discussion_default_sort
+    discussion_default_expand
     speedgrader_studio_media_capture
     disallow_threaded_replies_fix_alert
     horizon_course_setting
@@ -390,6 +390,7 @@ class ApplicationController < ActionController::Base
     file_verifiers_for_quiz_links
     lti_deep_linking_module_index_menu_modal
     lti_registrations_next
+    lti_asset_processor
     buttons_and_icons_root_account
     extended_submission_state
     scheduled_page_publication
@@ -403,7 +404,6 @@ class ApplicationController < ActionController::Base
     non_scoring_rubrics
     top_navigation_placement
     rubric_criterion_range
-    lti_migration_info
     rce_lite_enabled_speedgrader_comments
     lti_toggle_placements
     login_registration_ui_identity
@@ -411,10 +411,16 @@ class ApplicationController < ActionController::Base
     course_paces_skip_selected_days
     course_pace_download_document
     course_pace_draft_state
+    course_pace_time_selection
+    course_pace_pacing_status_labels
+    course_pace_pacing_with_mastery_paths
+    modules_requirements_allow_percentage
+    discussion_checkpoints
   ].freeze
-  JS_ENV_BRAND_ACCOUNT_FEATURES = [
-    :embedded_release_notes,
-    :consolidated_media_player
+  JS_ENV_BRAND_ACCOUNT_FEATURES = %i[
+    embedded_release_notes
+    consolidated_media_player
+    discussions_speedgrader_revisit
   ].freeze
   JS_ENV_FEATURES_HASH = Digest::SHA256.hexdigest([JS_ENV_SITE_ADMIN_FEATURES + JS_ENV_ROOT_ACCOUNT_FEATURES + JS_ENV_BRAND_ACCOUNT_FEATURES].sort.join(",")).freeze
   def cached_js_env_account_features
@@ -442,10 +448,10 @@ class ApplicationController < ActionController::Base
     default_settings = %i[calendar_contexts_limit open_registration]
     if Account.site_admin.feature_enabled?(:inbox_settings)
       inbox_settings = %i[
-        inbox_auto_response
-        inbox_signature_block
-        inbox_auto_response_for_students
-        inbox_signature_block_for_students
+        enable_inbox_signature_block
+        disable_inbox_signature_block_for_students
+        enable_inbox_auto_response
+        disable_inbox_auto_response_for_students
       ]
     end
     settings = default_settings
@@ -458,7 +464,6 @@ class ApplicationController < ActionController::Base
     js_env_settings = js_env_root_account_settings
     js_env_settings_hash = Digest::SHA256.hexdigest(js_env_settings.sort.join(","))
     account_settings_hash = Digest::SHA256.hexdigest(@domain_root_account[:settings].to_s)
-
     # can be invalidated by a settings change on the domain root account
     # or an update to js_env_root_account_settings
     MultiCache.fetch(["js_env_root_account_settings", js_env_settings_hash, account_settings_hash].cache_key) do
@@ -2043,7 +2048,7 @@ class ApplicationController < ActionController::Base
       data = { errors: [{ message: "Revoked access token." }] }
     when AuthenticationMethods::ExpiredAccessTokenError
       add_www_authenticate_header
-      data = { errors: [{ message: "Expired access token." }] }
+      data = { errors: [{ message: "Expired access token.", expired_at: @access_token&.permanent_expires_at }] }
     when AuthenticationMethods::AccessTokenError
       add_www_authenticate_header
       data = { errors: [{ message: "Invalid access token." }] }
@@ -2133,7 +2138,7 @@ class ApplicationController < ActionController::Base
   def content_tag_redirect(context, tag, error_redirect_symbol, tag_type = nil)
     url_params = (tag.tag_type == "context_module") ? { module_item_id: tag.id } : {}
     if tag.content_type == "Assignment"
-      use_edit_url = params[:build].nil? && @context.grants_any_right?(@current_user, :manage_assignments, :manage_assignments_edit) && tag.quiz_lti
+      use_edit_url = params[:build].nil? && @context.grants_right?(@current_user, :manage_assignments_edit) && tag.quiz_lti
       url_params[:quiz_lti] = true if use_edit_url
       redirect_symbol = use_edit_url ? :edit_context_assignment_url : :context_assignment_url
       redirect_to named_context_url(context, redirect_symbol, tag.content_id, url_params)
@@ -2962,7 +2967,7 @@ class ApplicationController < ActionController::Base
 
   def common_contexts(common_courses, common_groups, current_user, session)
     courses = Course.active.where(id: common_courses.keys).to_a
-    groups = Group.active.where(id: common_groups.keys).to_a
+    groups = Group.active.where(id: common_groups.keys).collaborative.to_a
 
     common_courses = courses.map do |course|
       course_json(course, current_user, session, ["html_url"], false).merge({
@@ -3036,14 +3041,7 @@ class ApplicationController < ActionController::Base
     rights = [*RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS, :manage_grades, :read_grades, :manage]
     permissions = @context.rights_status(@current_user, *rights)
     permissions[:manage_course] = permissions[:manage]
-    if @context.root_account.feature_enabled?(:granular_permissions_manage_assignments)
-      permissions[:manage_assignments] = permissions[:manage_assignments_edit]
-      permissions[:manage] = permissions[:manage_assignments_edit]
-    else
-      permissions[:manage_assignments_add] = permissions[:manage_assignments]
-      permissions[:manage_assignments_delete] = permissions[:manage_assignments]
-      permissions[:manage] = permissions[:manage_assignments]
-    end
+    permissions[:manage] = permissions[:manage_assignments_edit]
     permissions[:by_assignment_id] = @context.assignments.to_h do |assignment|
       [assignment.id,
        {

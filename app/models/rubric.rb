@@ -86,7 +86,7 @@ class Rubric < ActiveRecord::Base
     given { |user, session| context.grants_right?(user, session, :manage_rubrics) }
     can :read and can :create and can :delete_associations
 
-    given { |user, session| context.grants_any_right?(user, session, :manage_assignments, :manage_assignments_edit) }
+    given { |user, session| context.grants_right?(user, session, :manage_assignments_edit) }
     can :read and can :create and can :delete_associations
 
     given { |user, session| context.grants_right?(user, session, :manage) }
@@ -96,13 +96,13 @@ class Rubric < ActiveRecord::Base
     can :read
 
     # read_only means "associated with > 1 object for grading purposes"
-    given { |user, session| !read_only && rubric_associations.for_grading.count < 2 && context.grants_any_right?(user, session, :manage_assignments, :manage_assignments_edit) }
+    given { |user, session| !read_only && rubric_associations.for_grading.count < 2 && context.grants_right?(user, session, :manage_assignments_edit) }
     can :update and can :delete
 
     given { |user, session| !read_only && rubric_associations.for_grading.count < 2 && context.grants_right?(user, session, :manage_rubrics) }
     can :update and can :delete
 
-    given { |user, session| context.grants_any_right?(user, session, :manage_assignments, :manage_assignments_edit) }
+    given { |user, session| context.grants_right?(user, session, :manage_assignments_edit) }
     can :delete
 
     given { |user, session| context.grants_right?(user, session, :manage_rubrics) }
@@ -134,7 +134,7 @@ class Rubric < ActiveRecord::Base
     # remove this and 'unarchive' method when feature flag is removed
     return unless enhanced_rubrics_enabled?
 
-    InstStatsd::Statsd.increment("#{context.class.to_s.downcase}.rubrics.archived")
+    InstStatsd::Statsd.distributed_increment("#{context.class.to_s.downcase}.rubrics.archived")
     super
   end
 
@@ -608,6 +608,8 @@ class Rubric < ActiveRecord::Base
   end
 
   def self.rubric_self_assessment_enabled?(context_to_check)
+    return false if context_to_check.is_a?(Course) && !context_to_check.feature_enabled?(:assignments_2_student)
+
     context_to_check.feature_enabled?(:enhanced_rubrics) && context_to_check.root_account.feature_enabled?(:rubric_self_assessment)
   end
 end

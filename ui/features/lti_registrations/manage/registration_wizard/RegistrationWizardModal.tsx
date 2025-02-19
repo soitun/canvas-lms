@@ -32,7 +32,7 @@ import {View} from '@instructure/ui-view'
 import {Heading} from '@instructure/ui-heading'
 import {ProgressBar} from '@instructure/ui-progress'
 import {DynamicRegistrationWizard} from '../dynamic_registration_wizard/DynamicRegistrationWizard'
-import {type AccountId} from '../model/AccountId'
+import type {AccountId} from '../model/AccountId'
 import type {DynamicRegistrationWizardService} from '../dynamic_registration_wizard/DynamicRegistrationWizardService'
 import {isValidHttpUrl} from '../../common/lib/validators/isValidHttpUrl'
 import {RegistrationModalBody} from './RegistrationModalBody'
@@ -46,6 +46,9 @@ import {isValidJson} from '../../common/lib/validators/isValidJson'
 import type {FormMessage} from '@instructure/ui-form-field'
 import type {Lti1p3RegistrationWizardService} from '../lti_1p3_registration_form/Lti1p3RegistrationWizardService'
 import {EditLti1p3RegistrationWizard} from '../lti_1p3_registration_form/EditLti1p3RegistrationWizard'
+import {Responsive} from '@instructure/ui-responsive'
+import {ResponsiveWrapper} from '../registration_wizard_forms/ResponsiveWrapper'
+import {Header} from '../registration_wizard_forms/Header'
 
 const I18n = createI18nScope('lti_registrations')
 
@@ -70,42 +73,22 @@ export type RegistrationWizardModalProps = {
 export const RegistrationWizardModal = (props: RegistrationWizardModalProps) => {
   const state = useRegistrationModalWizardState(s => s)
 
-  const label = state.ltiImsRegistrationId ? I18n.t('Edit App') : I18n.t('Install App')
+  const label = state.existingRegistrationId ? I18n.t('Edit App') : I18n.t('Install App')
 
   return (
-    <Modal label={label} open={state.open} size="medium">
-      <Modal.Header>
-        <CloseButton
-          placement="end"
-          offset="medium"
-          onClick={state.close}
-          screenReaderLabel={I18n.t('Close')}
-        />
-        <Heading>{label}</Heading>
-      </Modal.Header>
-      {!state.registering ? (
-        <ProgressBar
-          meterColor="info"
-          shouldAnimate={true}
-          size="x-small"
-          screenReaderLabel={I18n.t('Installation Progress')}
-          valueNow={0}
-          valueMax={100}
-          themeOverride={{
-            trackBottomBorderWidth: '0',
-          }}
-          margin="0 0 small"
-        />
-      ) : null}
-
-      <ModalBodyWrapper
-        state={state}
-        accountId={props.accountId}
-        dynamicRegistrationWizardService={props.dynamicRegistrationWizardService}
-        lti1p3RegistrationWizardService={props.lti1p3RegistrationWizardService}
-        jsonUrlWizardService={props.jsonUrlWizardService}
-      />
-    </Modal>
+    <ResponsiveWrapper
+      render={modalProps => (
+        <Modal label={label} open={state.open} size={modalProps?.size || 'medium'}>
+          <ModalBodyWrapper
+            state={state}
+            accountId={props.accountId}
+            dynamicRegistrationWizardService={props.dynamicRegistrationWizardService}
+            lti1p3RegistrationWizardService={props.lti1p3RegistrationWizardService}
+            jsonUrlWizardService={props.jsonUrlWizardService}
+          />
+        </Modal>
+      )}
+    />
   )
 }
 
@@ -149,11 +132,11 @@ const ModalBodyWrapper = ({
           accountId={accountId}
           unifiedToolId={state.unifiedToolId}
           unregister={state.unregister}
-          registrationId={state.ltiImsRegistrationId}
+          registrationId={state.existingRegistrationId}
           onSuccessfulRegistration={() => {
             state.close()
             showFlashSuccess(
-              state.ltiImsRegistrationId
+              state.existingRegistrationId
                 ? I18n.t('App updated successfully!')
                 : I18n.t('App installed successfully!'),
             )()
@@ -201,7 +184,7 @@ const ModalBodyWrapper = ({
       )
     } else {
       return (
-        <InitializationModalBody
+        <InitializationModal
           state={state}
           accountId={accountId}
           jsonUrlWizardService={jsonUrlWizardService}
@@ -210,7 +193,7 @@ const ModalBodyWrapper = ({
     }
   } else {
     return (
-      <InitializationModalBody
+      <InitializationModal
         state={state}
         accountId={accountId}
         jsonUrlWizardService={jsonUrlWizardService}
@@ -234,7 +217,7 @@ const renderDebugMessage = (jsonUrlFetch: JsonFetchStatus) => {
   }
 }
 
-const InitializationModalBody = (props: InitializationModalBodyProps) => {
+const InitializationModal = (props: InitializationModalBodyProps) => {
   const [debugging, setDebugging] = React.useState(false)
 
   React.useEffect(() => {
@@ -251,6 +234,7 @@ const InitializationModalBody = (props: InitializationModalBodyProps) => {
 
   return (
     <>
+      <Header onClose={props.state.close} editing={!!props.state.existingRegistrationId} />
       <RegistrationModalBody>
         <View display="block" margin="0 0 medium 0">
           <RadioInputGroup
@@ -266,7 +250,7 @@ const InitializationModalBody = (props: InitializationModalBodyProps) => {
             defaultValue="1p3"
           >
             <RadioInput value="1p3" label="1.3" />
-            <RadioInput value="1p1" label="1.1" data-heap="lti-registration-1p1-interest" />
+            <RadioInput value="1p1" label="1.1" data-pendo="lti-registration-1p1-interest" />
           </RadioInputGroup>
         </View>
         {props.state.lti_version === '1p3' && (

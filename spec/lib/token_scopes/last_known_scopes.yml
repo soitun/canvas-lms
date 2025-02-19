@@ -1277,6 +1277,12 @@
   path: '/api/v1/courses/:course_id/quizzes/assignment_overrides'
 - verb: GET
   path: '/api/v1/courses/:course_id/recent_students'
+- verb: GET
+  path: '/api/v1/courses/:course_id/reports/:report_type'
+- verb: POST
+  path: '/api/v1/courses/:course_id/reports/:report_type'
+- verb: GET
+  path: '/api/v1/courses/:course_id/reports/:report_type/:id'
 - verb: POST
   path: '/api/v1/courses/:course_id/reset_content'
 - verb: GET
@@ -1523,6 +1529,8 @@
   path: '/api/v1/group_categories/:group_category_id'
 - verb: POST
   path: '/api/v1/group_categories/:group_category_id/assign_unassigned_members'
+- verb: POST
+  path: '/api/v1/group_categories/:group_category_id/bulk_manage_groups'
 - verb: GET
   path: '/api/v1/group_categories/:group_category_id/export'
 - verb: GET

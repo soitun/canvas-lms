@@ -96,15 +96,18 @@ const MigrationFileInput = ({
   return (
     <>
       <View margin="none none x-small none" style={{display: 'block'}}>
-        <label htmlFor="migrationFileUpload">
-          {isRequired ? (
-            <RequiredFormLabel showErrorState={formMessage && formMessage.type === 'newError'}>
-              {formLabelText}
-            </RequiredFormLabel>
-          ) : (
-            <FormLabel>{formLabelText}</FormLabel>
-          )}
-        </label>
+        {isRequired ? (
+          <RequiredFormLabel
+            showErrorState={formMessage && formMessage.type === 'newError'}
+            htmlFor="migrationFileUpload"
+          >
+            {formLabelText}
+          </RequiredFormLabel>
+        ) : (
+          <FormLabel htmlFor="migrationFileUpload">
+            {formLabelText}
+          </FormLabel>
+        )}
       </View>
       <FileDrop
         id="migrationFileUpload"
@@ -125,7 +128,7 @@ const MigrationFileInput = ({
             </Text>
           </View>
         }
-        maxWidth="22.5rem"
+        maxWidth="46.5rem"
       />
       {isSubmitting && (
         <View as="div" margin="small 0 0" maxWidth="22.5rem">

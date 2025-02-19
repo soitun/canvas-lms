@@ -19,9 +19,11 @@
 #
 
 require_relative "../../lti_1_3_tool_configuration_spec_helper"
-require_relative "../../lti_1_3_spec_helper"
 
 RSpec.describe Lti::RegistrationsController do
+  # Introduces internal_lti_configuration and canvas_lti_configuration
+  include_context "lti_1_3_tool_configuration_spec_helper"
+
   let(:response_json) do
     body = response.parsed_body
     body.is_a?(Array) ? body.map(&:with_indifferent_access) : body.with_indifferent_access
@@ -149,6 +151,20 @@ RSpec.describe Lti::RegistrationsController do
         lti_registration_model(account: Account.site_admin, name: "Site admin registration with no binding")
       end
 
+      context "when using 'self' for the account_id parameter" do
+        let(:url) { "/api/v1/accounts/self/lti_registrations" }
+
+        it "is successful" do
+          expect_any_instance_of(Lti::RegistrationsController)
+            .to receive(:api_find)
+            .with(Account.active, "self")
+            .once
+            .and_return(account)
+          subject
+          expect(response_json[:total]).to eq(4)
+        end
+      end
+
       it "is successful" do
         subject
         expect(response).to be_successful
@@ -205,10 +221,7 @@ RSpec.describe Lti::RegistrationsController do
       end
 
       context "when developer key is deleted" do
-        # introduces `tool_configuration`
-        include_context "lti_1_3_tool_configuration_spec_helper"
-
-        let(:developer_key) { dev_key_model_1_3(account:) }
+        let(:developer_key) { lti_developer_key_model(account:) }
         let(:registration) { developer_key.lti_registration }
 
         before do
@@ -269,6 +282,70 @@ RSpec.describe Lti::RegistrationsController do
             subject
             expect(response_data.first["name"]).to eq("AAA registration")
             expect(response_data.last["name"]).to eq("ZZZ registration")
+          end
+        end
+      end
+
+      context "when sorting by installed" do
+        subject { get "/api/v1/accounts/#{account.id}/lti_registrations?sort=installed" }
+
+        let(:first_registration) { lti_registration_model(account:, name: "AAA registration", created_at: 1.day.ago, updated_at: 1.day.ago) }
+        let(:second_registration) { lti_registration_model(account:, name: "ZZZ registration", created_at: 2.days.ago, updated_at: 2.days.ago) }
+
+        before do
+          first_registration
+          second_registration
+        end
+
+        it "sorts by created_at" do
+          subject
+          expect(response).to be_successful
+          first_index = response_data.find_index { |r| r["id"] == first_registration.id }
+          second_index = response_data.find_index { |r| r["id"] == second_registration.id }
+          expect(first_index).to be < second_index
+        end
+
+        context "with the dir=asc parameter" do
+          subject { get "/api/v1/accounts/#{account.id}/lti_registrations?sort=installed&dir=asc" }
+
+          it "puts the results in ascending order" do
+            subject
+            expect(response).to be_successful
+            first_index = response_data.find_index { |r| r["id"] == first_registration.id }
+            second_index = response_data.find_index { |r| r["id"] == second_registration.id }
+            expect(second_index).to be < first_index
+          end
+        end
+      end
+
+      context "when sorting by updated" do
+        subject { get "/api/v1/accounts/#{account.id}/lti_registrations?sort=updated" }
+
+        let(:first_registration) { lti_registration_model(account:, name: "AAA registration", created_at: 1.day.ago, updated_at: 1.day.ago) }
+        let(:second_registration) { lti_registration_model(account:, name: "ZZZ registration", created_at: 2.days.ago, updated_at: 2.days.ago) }
+
+        before do
+          first_registration
+          second_registration
+        end
+
+        it "sorts by updated_at" do
+          subject
+          expect(response).to be_successful
+          first_index = response_data.find_index { |r| r["id"] == first_registration.id }
+          second_index = response_data.find_index { |r| r["id"] == second_registration.id }
+          expect(first_index).to be < second_index
+        end
+
+        context "with the dir=asc parameter" do
+          subject { get "/api/v1/accounts/#{account.id}/lti_registrations?sort=updated&dir=asc" }
+
+          it "puts the results in ascending order" do
+            subject
+            expect(response).to be_successful
+            first_index = response_data.find_index { |r| r["id"] == first_registration.id }
+            second_index = response_data.find_index { |r| r["id"] == second_registration.id }
+            expect(second_index).to be < first_index
           end
         end
       end
@@ -701,7 +778,7 @@ RSpec.describe Lti::RegistrationsController do
   describe "GET show_by_client_id", type: :request do
     subject { get "/api/v1/accounts/#{account.id}/lti_registration_by_client_id/#{developer_key.id}" }
 
-    let(:developer_key) { dev_key_model_1_3(account:) }
+    let(:developer_key) { lti_developer_key_model(account:) }
     let(:registration) { developer_key.lti_registration }
 
     context "without user session" do
@@ -766,14 +843,11 @@ RSpec.describe Lti::RegistrationsController do
       response
     end
 
-    # Includes settings and internal_configuration
-    include_context "lti_1_3_spec_helper"
-
     let(:params) do
       {
         admin_nickname:,
         vendor:,
-        configuration: internal_configuration,
+        configuration: internal_lti_configuration,
         name:,
         workflow_state: "on"
       }
@@ -781,11 +855,15 @@ RSpec.describe Lti::RegistrationsController do
 
     let(:other_admin) { account_admin_user(account:) }
     let(:registration) { developer_key.lti_registration }
+    let(:developer_key) do
+      lti_developer_key_model(account:).tap do |dk|
+        lti_tool_configuration_model(developer_key: dk, lti_registration: dk.lti_registration)
+      end
+    end
+    let(:tool_configuration) { developer_key.tool_configuration }
     let(:admin_nickname) { "New Name" }
     let(:name) { "foo" }
     let(:vendor) { "vendor" }
-
-    before { tool_configuration }
 
     it "is successful" do
       expect(subject).to be_successful
@@ -820,8 +898,8 @@ RSpec.describe Lti::RegistrationsController do
       expect(attributes).to eq(
         {
           name:,
-          icon_url: internal_configuration[:launch_settings][:icon_url],
-          **internal_configuration.slice(:public_jwk, :public_jwk_url, :scopes, :redirect_uris)
+          icon_url: internal_lti_configuration[:launch_settings][:icon_url],
+          **internal_lti_configuration.slice(:public_jwk, :public_jwk_url, :scopes, :redirect_uris)
         }.with_indifferent_access
       )
     end
@@ -829,8 +907,8 @@ RSpec.describe Lti::RegistrationsController do
     it "updates the associated tool configuration" do
       expect(subject).to be_successful
 
-      expect(tool_configuration.reload.internal_lti_configuration.except(:public_jwk_url).with_indifferent_access)
-        .to eq(internal_configuration.with_indifferent_access)
+      expect(tool_configuration.reload.internal_lti_configuration.with_indifferent_access)
+        .to eq(internal_lti_configuration.with_indifferent_access)
     end
 
     it "updates the associated registration account binding" do
@@ -842,8 +920,8 @@ RSpec.describe Lti::RegistrationsController do
     it "returns the appropriate info" do
       expect(subject).to be_successful
 
-      expect(response_json[:configuration].with_indifferent_access.except(:public_jwk_url))
-        .to eq(internal_configuration.with_indifferent_access)
+      expect(response_json[:configuration].with_indifferent_access)
+        .to eq(internal_lti_configuration.with_indifferent_access)
       expect(response_json[:account_binding]).to include({ workflow_state: "on" })
     end
 
@@ -877,12 +955,28 @@ RSpec.describe Lti::RegistrationsController do
         }
       end
 
+      before { tool_configuration.destroy }
+
       it { is_expected.to be_successful }
+
+      context "disabling scopes" do
+        let(:params) do
+          super().tap do |p|
+            p[:overlay][:disabled_scopes] = [ims_registration.internal_lti_configuration[:scopes][0]]
+          end
+        end
+
+        it "is successful" do
+          ims_registration
+          expect(subject).to be_successful
+          expect(registration.reload.developer_key.scopes).not_to include(ims_registration.internal_lti_configuration[:scopes][0])
+        end
+      end
 
       context "trying to update it's base configuration" do
         let(:params) do
           {
-            configuration: internal_configuration,
+            configuration: internal_lti_configuration,
           }
         end
 
@@ -953,7 +1047,7 @@ RSpec.describe Lti::RegistrationsController do
     context "with a legacy configuration" do
       let(:params) do
         super().tap do |p|
-          p[:configuration] = registration.manual_configuration.settings.except(:public_jwk_url)
+          p[:configuration] = registration.canvas_configuration.except(:public_jwk_url)
         end
       end
 
@@ -1003,7 +1097,7 @@ RSpec.describe Lti::RegistrationsController do
       let(:params) do
         {
           configuration: {
-            **internal_configuration,
+            **internal_lti_configuration,
             title: "A Great Partial Update",
           }
         }
@@ -1012,7 +1106,7 @@ RSpec.describe Lti::RegistrationsController do
       it "is successful" do
         expect(subject).to be_successful
 
-        expect(tool_configuration.reload.internal_lti_configuration.with_indifferent_access.except(:public_jwk_url))
+        expect(tool_configuration.reload.internal_lti_configuration.with_indifferent_access)
           .to eq(params[:configuration].with_indifferent_access)
       end
     end
@@ -1075,7 +1169,7 @@ RSpec.describe Lti::RegistrationsController do
     context "with configuration containing nil attribute" do
       let(:params) do
         super().tap do |p|
-          p[:configuration] = { **internal_configuration, "domain" => nil }
+          p[:configuration] = { **internal_lti_configuration, "domain" => nil }
         end
       end
 
@@ -1306,7 +1400,10 @@ RSpec.describe Lti::RegistrationsController do
   end
 
   describe "POST validate", type: :request do
+    # introduces `canvas_lti_configuration` (hard-coded JSON LtiConfiguration)
     subject { post "/api/v1/accounts/#{account.id}/lti_registrations/configuration/validate", params: { url:, lti_configuration: }.compact, as: :json }
+
+    include_context "lti_1_3_tool_configuration_spec_helper"
 
     let(:url) { nil }
     let(:lti_configuration) { nil }
@@ -1370,10 +1467,7 @@ RSpec.describe Lti::RegistrationsController do
     end
 
     context "with valid lti_configuration" do
-      # introduces `settings` (hard-coded JSON LtiConfiguration)
-      include_context "lti_1_3_tool_configuration_spec_helper"
-
-      let(:lti_configuration) { settings }
+      let(:lti_configuration) { canvas_lti_configuration }
 
       it "is successful" do
         subject
@@ -1382,16 +1476,16 @@ RSpec.describe Lti::RegistrationsController do
 
       it "transforms the configuration" do
         subject
-        expect(response_json["configuration"]).to eq internal_configuration.with_indifferent_access
+        expect(response_json["configuration"]).to eq internal_lti_configuration.with_indifferent_access
       end
 
       it "adds a default redirect_uris to ensure the configuration is valid" do
         subject
-        expect(response_json["configuration"]["redirect_uris"]).to eq internal_configuration[:redirect_uris]
+        expect(response_json["configuration"]["redirect_uris"]).to eq internal_lti_configuration[:redirect_uris]
       end
 
       context "with redirect_uris" do
-        let(:lti_configuration) { settings.merge(redirect_uris:) }
+        let(:lti_configuration) { canvas_lti_configuration.merge(redirect_uris:) }
         let(:redirect_uris) { ["http://example.com"] }
 
         it "is successful" do
@@ -1504,10 +1598,7 @@ RSpec.describe Lti::RegistrationsController do
         end
 
         context "when configuration is valid" do
-          # introduces `settings` (hard-coded JSON LtiConfiguration)
-          include_context "lti_1_3_tool_configuration_spec_helper"
-
-          let(:config) { settings }
+          let(:config) { canvas_lti_configuration }
 
           it "is successful" do
             subject
@@ -1516,7 +1607,7 @@ RSpec.describe Lti::RegistrationsController do
 
           it "transforms the configuration" do
             subject
-            expect(response_json["configuration"]).to eq internal_configuration.with_indifferent_access
+            expect(response_json["configuration"]).to eq internal_lti_configuration.with_indifferent_access
           end
         end
       end
@@ -1531,14 +1622,11 @@ RSpec.describe Lti::RegistrationsController do
       response
     end
 
-    # Introduces internal_configuration and settings
-    include_context "lti_1_3_tool_configuration_spec_helper"
-
     let(:params) do
       {
         name: "Test Tool",
         vendor: "Test Vendor",
-        configuration: internal_configuration,
+        configuration: internal_lti_configuration,
         admin_nickname: "Test Nickname"
       }
     end
@@ -1593,7 +1681,7 @@ RSpec.describe Lti::RegistrationsController do
       expect { subject }.to change { Lti::ToolConfiguration.count }.by(1)
 
       expect(Lti::ToolConfiguration.last.internal_lti_configuration.with_indifferent_access)
-        .to eq(internal_configuration.merge({ "public_jwk_url" => nil }).with_indifferent_access)
+        .to eq(internal_lti_configuration.with_indifferent_access)
     end
 
     it "defaults to a nil unified_tool_id" do
@@ -1607,8 +1695,8 @@ RSpec.describe Lti::RegistrationsController do
       expect(response).to be_successful
       expect(response_json[:name]).to eq("Test Tool")
       expect(response_json[:admin_nickname]).to eq("Test Nickname")
-      expect(response_json[:configuration].with_indifferent_access.except(:public_jwk_url))
-        .to eq(internal_configuration.with_indifferent_access)
+      expect(response_json[:configuration].with_indifferent_access)
+        .to eq(internal_lti_configuration.with_indifferent_access)
       expect(response_json[:account_binding]).to be_present
     end
 
@@ -1694,7 +1782,7 @@ RSpec.describe Lti::RegistrationsController do
     end
 
     context "with invalid configuration" do
-      let(:internal_configuration) { { title: "Invalid Tool" } }
+      let(:internal_lti_configuration) { { title: "Invalid Tool" } }
 
       it "returns 422" do
         subject
@@ -1714,7 +1802,7 @@ RSpec.describe Lti::RegistrationsController do
     end
 
     context "multiple redirect_uris listed" do
-      let(:internal_configuration) do
+      let(:internal_lti_configuration) do
         super().tap do |ic|
           ic[:redirect_uris] << "anotherredirecturi.com"
         end
@@ -1723,7 +1811,7 @@ RSpec.describe Lti::RegistrationsController do
       it "is saved properly to the tool configuration" do
         expect { subject }.to change { Lti::ToolConfiguration.count }.by(1)
 
-        expect(Lti::ToolConfiguration.last.redirect_uris).to eq internal_configuration[:redirect_uris]
+        expect(Lti::ToolConfiguration.last.redirect_uris).to eq internal_lti_configuration[:redirect_uris]
       end
     end
 
@@ -1750,7 +1838,7 @@ RSpec.describe Lti::RegistrationsController do
       end
 
       it "removes scopes from the dev key that are disabled in the overlay" do
-        internal_configuration[:scopes] = TokenScopes::ALL_LTI_SCOPES.dup
+        internal_lti_configuration[:scopes] = TokenScopes::ALL_LTI_SCOPES.dup
         params[:overlay][:disabled_scopes] = [TokenScopes::LTI_AGS_SCORE_SCOPE]
         subject
         expect(response).to be_successful
@@ -1771,7 +1859,7 @@ RSpec.describe Lti::RegistrationsController do
     context "using a legacy configuration" do
       let(:params) do
         super().tap do |p|
-          p[:configuration] = settings
+          p[:configuration] = canvas_lti_configuration
         end
       end
 
@@ -1789,7 +1877,7 @@ RSpec.describe Lti::RegistrationsController do
         expect { subject }.to change { Lti::ToolConfiguration.count }.by(1)
 
         expect(Lti::ToolConfiguration.last.internal_lti_configuration.with_indifferent_access)
-          .to eq(internal_configuration.with_indifferent_access.merge(public_jwk_url: nil))
+          .to eq(internal_lti_configuration.with_indifferent_access)
       end
 
       it "returns the created registration" do

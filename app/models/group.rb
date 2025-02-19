@@ -109,6 +109,8 @@ class Group < ActiveRecord::Base
     record.errors.add attr, t(:greater_than_1, "Must be greater than 1") unless value.to_i > 1
   end
 
+  validates_with HorizonValidators::GroupValidator, if: -> { context.is_a?(Course) && context.horizon_course? }
+
   def refresh_group_discussion_topics
     if group_category
       group_category.discussion_topics.active.each(&:update_subtopics)
@@ -520,7 +522,6 @@ class Group < ActiveRecord::Base
     given { |user| !non_collaborative? && user && can_participate?(user) && has_member?(user) }
     can :participate,
         :manage_calendar,
-        :manage_content,
         :manage_course_content_add,
         :manage_course_content_edit,
         :manage_course_content_delete,
@@ -555,11 +556,16 @@ class Group < ActiveRecord::Base
       ]
 
       given do |user, session|
-        user && has_member?(user) &&
-          (!context || context.is_a?(Account) || context.grants_any_right?(user, session, :send_messages, :send_messages_all))
-      end
-      can :send_messages and can :send_messages_all
+        next false unless user
 
+        if context.nil? || context.is_a?(Account)
+          has_member?(user)
+        else
+          context.grants_any_right?(user, session, :send_messages, :send_messages_all)
+        end
+      end
+      can :send_messages
+      can :send_messages_all
       # if I am a member of this group and I can moderate_forum in the group's context
       # (makes it so group members cant edit each other's discussion entries)
       given { |user, session| user && has_member?(user) && (!context || context.grants_right?(user, session, :moderate_forum)) }
@@ -601,7 +607,6 @@ class Group < ActiveRecord::Base
         manage
         allow_course_admin_actions
         manage_calendar
-        manage_content
         manage_course_content_add
         manage_course_content_edit
         manage_course_content_delete
@@ -645,19 +650,9 @@ class Group < ActiveRecord::Base
       given { |user| user && (self.group_category.try(:allows_multiple_memberships?) || allow_self_signup?(user)) }
       can :leave
 
-      #################### Begin legacy permission block #########################
       given do |user, session|
-        !context.root_account.feature_enabled?(:granular_permissions_manage_course_content) &&
-          grants_right?(user, session, :manage_content) && context &&
-          context.grants_right?(user, session, :create_conferences)
-      end
-      can :create_conferences
-      ##################### End legacy permission block ##########################
-
-      given do |user, session|
-        context.root_account.feature_enabled?(:granular_permissions_manage_course_content) &&
-          grants_right?(user, session, :manage_course_content_add) && context &&
-          context.grants_right?(user, session, :create_conferences)
+        grants_right?(user, session, :manage_course_content_add) &&
+          context&.grants_right?(user, session, :create_conferences)
       end
       can :create_conferences
 
@@ -748,7 +743,6 @@ class Group < ActiveRecord::Base
       # be used as a context that owns content. So no user should ever be able to manage content in a non_collaborative group.
       # %i[
       #   manage_calendar
-      #   manage_content
       #   manage_course_content_add
       #   manage_course_content_edit
       #   manage_course_content_delete

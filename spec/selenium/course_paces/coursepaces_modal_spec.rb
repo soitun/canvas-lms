@@ -86,14 +86,6 @@ describe "course pace page" do
 
       expect(element_exists?(save_draft_button_selector)).to be_truthy
     end
-
-    it "pace in a draft state renders draft status pill" do
-      visit_course_paces_page
-
-      click_create_default_pace_button
-
-      expect(element_exists?(draft_pace_status_pill_selector)).to be_truthy
-    end
   end
 
   context "remove course pace button" do
@@ -405,6 +397,72 @@ describe "course pace page" do
       # There's probably a better regex here
       expect(duration_info.text).to include("weeks")
       expect(duration_info.text).to include("day")
+    end
+
+    context "course_pace_time_selection is enabled" do
+      before do
+        @course.root_account.enable_feature!(:course_pace_time_selection)
+        @course.root_account.reload
+      end
+
+      it "shows the potential number of students in unpublished pace" do
+        visit_course_paces_page
+
+        click_create_default_pace_button
+
+        expect(pace_course_stats_info.text).to include("Student Enrolled:2")
+      end
+
+      it "shows the actual number of students in a section pace" do
+        create_published_course_pace("Course Pace 1", "Module Assignment 1")
+        create_section_pace(@new_section_1)
+
+        visit_course_paces_page
+        click_context_link(@new_section_1.name)
+
+        expect(pace_course_stats_info.text).to include("Student Enrolled:1")
+      end
+
+      it "shows the number of assignments in the course pace" do
+        @course_module = create_course_module("New Module", "active")
+        @assignment = create_assignment(@course, "Module Assignment", "Module Assignment Description", 10, "published")
+        @module_item = @course_module.add_item(id: @assignment.id, type: "assignment")
+        create_published_course_pace("Course Pace 1", "Module Assignment 1")
+
+        visit_course_paces_page
+        click_context_link(@new_section_1.name)
+
+        expect(pace_course_stats_info.text).to include("Assignments Count:2")
+      end
+
+      it "shows draft status for an unpublished course pace" do
+        create_draft_course_pace
+        visit_course_paces_page
+
+        click_create_default_pace_button
+
+        expect(pace_course_stats_info.text).to include("Status:Draft")
+      end
+
+      it "shows start and end date inputs with the potential information in an unpublished course pace" do
+        create_published_course_pace("Course Pace 1", "Module Assignment 1")
+
+        visit_course_paces_page
+        click_context_link(@new_section_1.name)
+
+        expect(pace_start_date_input).to be_displayed
+        expect(pace_end_date_input).to be_displayed
+      end
+
+      it "shows the duration based on start and end dates in published course pace" do
+        create_published_course_pace("Course Pace 1", "Module Assignment 1")
+
+        visit_course_paces_page
+        click_context_link(@new_section_1.name)
+
+        expect(pace_weeks_number_input).to be_displayed
+        expect(pace_days_number_input).to be_displayed
+      end
     end
   end
 end

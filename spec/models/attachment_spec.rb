@@ -21,7 +21,7 @@
 describe Attachment do
   context "validation" do
     it "creates a new instance given valid attributes" do
-      attachment_model
+      expect { attachment_model }.not_to raise_error
     end
 
     it "requires a context" do
@@ -629,6 +629,15 @@ describe Attachment do
       @attachment.media_tracks.create!(kind: "subtitles", locale: "fr", content: "fr subs", user_id: @teacher, media_object: @media_object)
       expect(@attachment.media_tracks_include_originals.first.inherited).to be_truthy
       expect(@attachment.media_tracks_include_originals.last.inherited).to be_falsey
+    end
+  end
+
+  context "sanitized_full_display_path" do
+    let(:f) { folder_model(name: "folder<with>bad:chars", context: course_model) }
+    let(:a) { attachment_model(filename: "file\"with\\bad|chars?in*name.txt", folder: f) }
+
+    it "replaces disallowed characters in the attachment path" do
+      expect(a.sanitized_full_display_path).to end_with("folder_with_bad_chars/file_with_bad_chars_in_name.txt")
     end
   end
 
@@ -2816,7 +2825,7 @@ describe Attachment do
 
   describe "#process_s3_details!" do
     before :once do
-      attachment_model(filename: "new filename")
+      attachment_model(filename: "new_filename")
     end
 
     before do
@@ -2877,7 +2886,7 @@ describe Attachment do
 
         it "does not retire the new attachment's filename" do
           @attachment.process_s3_details!({})
-          @attachment.reload.filename == "new filename"
+          expect(@attachment.reload.filename).to eq("new_filename")
         end
 
         it "puts the existing attachment under the new attachment" do

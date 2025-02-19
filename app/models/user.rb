@@ -87,6 +87,7 @@ class User < ActiveRecord::Base
 
   has_many :enrollments, dependent: :destroy
   has_many :course_paces, dependent: :destroy
+  has_many :course_reports, dependent: :destroy
 
   has_many :not_ended_enrollments, -> { where("enrollments.workflow_state NOT IN ('rejected', 'completed', 'deleted', 'inactive')") }, class_name: "Enrollment", multishard: true
   has_many :not_removed_enrollments, -> { where.not(workflow_state: %w[rejected deleted inactive]) }, class_name: "Enrollment", multishard: true
@@ -172,11 +173,10 @@ class User < ActiveRecord::Base
   has_many :active_images, -> { where("attachments.file_state != ? AND attachments.content_type LIKE 'image%'", "deleted").order(:display_name).preload(:thumbnail) }, as: :context, inverse_of: :context, class_name: "Attachment"
   has_many :active_assignments, -> { where("assignments.workflow_state<>'deleted'") }, as: :context, inverse_of: :context, class_name: "Assignment"
   has_many :mentions, inverse_of: :user
+  has_many :discussion_entries
   has_many :discussion_entry_drafts, inverse_of: :user
   has_many :discussion_entry_versions, inverse_of: :user
   has_many :all_attachments, as: "context", class_name: "Attachment"
-  has_many :assignment_student_visibilities
-  has_many :quiz_student_visibilities, class_name: "Quizzes::QuizStudentVisibility"
   has_many :folders, -> { order("folders.name") }, as: :context, inverse_of: :context
   has_many :submissions_folders, -> { where.not(folders: { submission_context_code: nil }) }, as: :context, inverse_of: :context, class_name: "Folder"
   has_many :active_folders, -> { where("folders.workflow_state<>'deleted'").order(:name) }, class_name: "Folder", as: :context, inverse_of: :context
@@ -1359,7 +1359,6 @@ class User < ActiveRecord::Base
       read_files
       read_as_admin
       manage
-      manage_content
       manage_course_content_add
       manage_course_content_edit
       manage_course_content_delete
@@ -1369,6 +1368,7 @@ class User < ActiveRecord::Base
       manage_calendar
       send_messages
       update_avatar
+      update_profile
       view_feature_flags
       manage_feature_flags
       api_show_user
@@ -1426,7 +1426,7 @@ class User < ActiveRecord::Base
       check_accounts_right?(user, :manage_user_logins) && adminable_accounts.select(&:root_account?).all? { |a| has_subset_of_account_permissions?(user, a) }
     end
     can :manage_user_details and can :rename and can :update_avatar and can :remove_avatar and
-      can :manage_feature_flags and can :view_feature_flags
+      can :manage_feature_flags and can :view_feature_flags and can :update_profile
 
     given { |user| pseudonyms.shard(self).any? { |p| p.grants_right?(user, :update) } }
     can :merge
@@ -3002,6 +3002,10 @@ class User < ActiveRecord::Base
                       favorites + courses.reject { |c| can_favorite.call(c) }
                     end
     ActiveRecord::Associations.preload(@menu_courses, :enrollment_term)
+    @menu_courses = @menu_courses.reject do |c|
+      is_student = roles(c.root_account).all? { |role| ["student", "user"].include?(role) }
+      is_student && c.horizon_course?
+    end
     @menu_courses
   end
 
@@ -3516,14 +3520,18 @@ class User < ActiveRecord::Base
     return nil if fake_student? || account.root_account.site_admin?
 
     scope = account.root_account.enrollments.active.where(user_id: self)
-    teacher_right = account.root_account.teachers_can_create_courses? && scope.where(type: %w[TeacherEnrollment DesignerEnrollment]).exists?
-    # k5 users can still create courses anywhere, even if the setting restricts them to the manually created courses account
-    return :teacher if teacher_right && (account.root_account.teachers_can_create_courses_anywhere? || active_k5_enrollments?)
-    return :teacher if teacher_right && account == account.root_account.manually_created_courses_account
+    course_scope = Enrollment.joins(:course).merge(Course.where(account:))
 
-    student_right = account.root_account.students_can_create_courses? && scope.where(type: %w[StudentEnrollment ObserverEnrollment]).exists?
-    return :student if student_right && (account.root_account.students_can_create_courses_anywhere? || active_k5_enrollments?)
-    return :student if student_right && account == account.root_account.manually_created_courses_account
+    teacher_right = account.root_account.teachers_can_create_courses?
+    teacher_scope = scope.where(type: %w[TeacherEnrollment DesignerEnrollment])
+    # k5 users can still create courses anywhere, even if the setting restricts them to the manually created courses account
+    return :teacher if teacher_right && teacher_scope.merge(course_scope).exists? && (account.root_account.teachers_can_create_courses_anywhere? || active_k5_enrollments?)
+    return :teacher if teacher_right && teacher_scope.exists? && account == account.root_account.manually_created_courses_account
+
+    student_right = account.root_account.students_can_create_courses?
+    student_scope = scope.where(type: %w[StudentEnrollment ObserverEnrollment])
+    return :student if student_right && student_scope.merge(course_scope).exists? && (account.root_account.students_can_create_courses_anywhere? || active_k5_enrollments?)
+    return :student if student_right && student_scope.exists? && account == account.root_account.manually_created_courses_account
     return :no_enrollments if account.root_account.no_enrollments_can_create_courses? && !scope.exists? && account == account.root_account.manually_created_courses_account
 
     nil

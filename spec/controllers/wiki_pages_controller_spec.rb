@@ -39,11 +39,46 @@ describe WikiPagesController do
       expect(assigns[:js_env][:DISPLAY_SHOW_ALL_LINK]).to be(true)
     end
 
+    it "suppresses text editor preferences with block editor FF off" do
+      @user.set_preference(:text_editor_preference, "block_editor")
+      @course.account.enable_feature!(:block_editor)
+      get "index", params: { course_id: @course.id }
+      expect(assigns[:js_env][:text_editor_preference]).to eq "block_editor"
+      @course.account.disable_feature!(:block_editor)
+      get "index", params: { course_id: @course.id }
+      expect(assigns[:js_env].keys).not_to include(:text_editor_preference)
+    end
+
     it "sets up js_env for the block editor" do
       @course.account.enable_feature!(:block_editor)
       get "index", params: { course_id: @course.id }
       expect(response).to be_successful
       expect(assigns[:js_env][:FEATURES][:BLOCK_EDITOR]).to be(true)
+    end
+
+    context "assign to differentiation tags" do
+      before do
+        @course.account.enable_feature! :assign_to_differentiation_tags
+        @course.account.enable_feature! :differentiation_tags
+        @course.account.tap do |a|
+          a.settings[:allow_assign_to_differentiation_tags] = true
+          a.save!
+        end
+      end
+
+      it "adds differentiation tags information if account setting is on" do
+        get "index", params: { course_id: @course.id }
+        expect(assigns[:js_env][:ALLOW_ASSIGN_TO_DIFFERENTIATION_TAGS]).to be true
+        expect(assigns[:js_env][:CAN_MANAGE_DIFFERENTIATION_TAGS]).to be true
+      end
+
+      it "does not add differentiation tags information if user cannot manage tags" do
+        course_with_student(active_all: true)
+        user_session(@student)
+        get "index", params: { course_id: @course.id }
+        expect(assigns[:js_env][:ALLOW_ASSIGN_TO_DIFFERENTIATION_TAGS]).to be_nil
+        expect(assigns[:js_env][:CAN_MANAGE_DIFFERENTIATION_TAGS]).to be_nil
+      end
     end
   end
 
@@ -155,7 +190,7 @@ describe WikiPagesController do
 
         before do
           @page.wiki_page_lookups.create!(slug: "an-old-url")
-          allow(InstStatsd::Statsd).to receive(:increment)
+          allow(InstStatsd::Statsd).to receive(:distributed_increment)
         end
 
         it "redirects to current page url" do
@@ -165,12 +200,12 @@ describe WikiPagesController do
 
         it "emits wikipage.show.page_url_resolved to statsd when finding a page from a stale URL" do
           get "show", params: { course_id: @course.id, id: "an-old-url" }
-          expect(InstStatsd::Statsd).to have_received(:increment).once.with("wikipage.show.page_url_resolved")
+          expect(InstStatsd::Statsd).to have_received(:distributed_increment).once.with("wikipage.show.page_url_resolved")
         end
 
         it "does not emit wikipage.show.page_url_resolved to statsd when using the current page URL" do
           get "show", params: { course_id: @course.id, id: @page.url }
-          expect(InstStatsd::Statsd).not_to have_received(:increment).with("wikipage.show.page_url_resolved")
+          expect(InstStatsd::Statsd).not_to have_received(:distributed_increment).with("wikipage.show.page_url_resolved")
         end
       end
     end
@@ -230,7 +265,7 @@ describe WikiPagesController do
 
   describe "metrics" do
     before do
-      allow(InstStatsd::Statsd).to receive(:increment).and_call_original
+      allow(InstStatsd::Statsd).to receive(:distributed_increment).and_call_original
     end
 
     context "show" do
@@ -239,7 +274,7 @@ describe WikiPagesController do
           course_with_teacher_logged_in(active_all: true)
           bad_page_url = "something-that-doesnt-really-exist"
           get "show", params: { course_id: @course.id, id: bad_page_url }
-          expect(InstStatsd::Statsd).to have_received(:increment).with("wikipage.show.page_does_not_exist.with_edit_rights")
+          expect(InstStatsd::Statsd).to have_received(:distributed_increment).with("wikipage.show.page_does_not_exist.with_edit_rights")
         end
 
         it "does not increment the count metric when page is deleted" do
@@ -247,7 +282,7 @@ describe WikiPagesController do
           @page = @course.wiki_pages.create!(title: "delete me")
           @page.update(workflow_state: "deleted")
           get "show", params: { course_id: @course.id, id: @page.url }
-          expect(InstStatsd::Statsd).not_to have_received(:increment).with("wikipage.show.page_does_not_exist.with_edit_rights")
+          expect(InstStatsd::Statsd).not_to have_received(:distributed_increment).with("wikipage.show.page_does_not_exist.with_edit_rights")
         end
       end
 
@@ -256,7 +291,7 @@ describe WikiPagesController do
           course_with_student_logged_in(active_all: true)
           bad_page_url = "something-else-that-doesnt-really-exist"
           get "show", params: { course_id: @course.id, id: bad_page_url }
-          expect(InstStatsd::Statsd).to have_received(:increment).with("wikipage.show.page_does_not_exist.without_edit_rights")
+          expect(InstStatsd::Statsd).to have_received(:distributed_increment).with("wikipage.show.page_does_not_exist.without_edit_rights")
         end
 
         it "does not increment the count metric when page is deleted" do
@@ -264,7 +299,7 @@ describe WikiPagesController do
           @page = @course.wiki_pages.create!(title: "delete me too")
           @page.update(workflow_state: "deleted")
           get "show", params: { course_id: @course.id, id: @page.url }
-          expect(InstStatsd::Statsd).not_to have_received(:increment).with("wikipage.show.page_does_not_exist.without_edit_rights")
+          expect(InstStatsd::Statsd).not_to have_received(:distributed_increment).with("wikipage.show.page_does_not_exist.without_edit_rights")
         end
       end
     end

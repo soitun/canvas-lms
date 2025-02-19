@@ -151,6 +151,46 @@ describe ContextController do
         expect(assigns[:js_env][:STUDENT_CONTEXT_CARDS_ENABLED]).to be_falsey
       end
     end
+
+    it "displays modernized course people page when FF enabled" do
+      @course.root_account.enable_feature!(:people_page_modernization)
+      user_session(@teacher)
+      get :roster, params: { course_id: @course.id }
+      expect(response.status).to eq(200)
+      expect(response).to render_template "layouts/application"
+      expect(response.body).to eq("")
+      expect(assigns).to have_key(:js_bundles)
+      expect(assigns[:js_bundles]).to include [:course_people_new, nil, false]
+    end
+
+    context "allow_manage_differentiation_tags in js_env" do
+      before :once do
+        @course.account.enable_feature! :assign_to_differentiation_tags
+        @course.account.settings = { allow_assign_to_differentiation_tags: true }
+        @course.account.save!
+      end
+
+      it "set to true when differentiation tags are enabled in account settings" do
+        user_session(@teacher)
+        get :roster, params: { course_id: @course.id }
+        expect(assigns[:js_env][:permissions][:allow_assign_to_differentiation_tags]).to be_truthy
+      end
+
+      it "set to false when differentiation tags are disabled in account settings" do
+        @course.account.settings = { allow_assign_to_differentiation_tags: false }
+        @course.account.save!
+        user_session(@teacher)
+        get :roster, params: { course_id: @course.id }
+        expect(assigns[:js_env][:permissions][:allow_assign_to_differentiation_tags]).to be_falsey
+      end
+
+      it "set to false when assign_to_differentiation_tags FF is disabled" do
+        @course.account.disable_feature! :assign_to_differentiation_tags
+        user_session(@teacher)
+        get :roster, params: { course_id: @course.id }
+        expect(assigns[:js_env][:permissions][:allow_assign_to_differentiation_tags]).to be_falsey
+      end
+    end
   end
 
   describe "GET 'roster_user'" do

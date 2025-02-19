@@ -221,6 +221,9 @@ grading_scheme_updates:
   applies_to: SiteAdmin
   display_name: Improve Letter Grading Scheme Usability
   description: Teachers and Account Managers will be able to more easily manage letter grading schemes for accounts, courses, and assignments.
+  environments:
+    development:
+      state: allowed_on # enable by deault for local development
 custom_gradebook_statuses:
   state: hidden
   applies_to: SiteAdmin
@@ -416,3 +419,24 @@ use_body_word_count:
   applies_to: SiteAdmin
   display_name: Use body_word_count for displaying submission word count
   description: For text entry submisisons, the word count is currently calculated on-the-fly which can lead to load time issues. With this flag enabled, the value will be read from the new body_word_count column.
+graphql_honor_anonymous_grading:
+  state: hidden
+  applies_to: SiteAdmin
+  display_name: GraphQL API Honors Anonymous Grading
+  description: GraphQL API will return anonymous data for assignments and courses with anonymous grading enabled.
+  environments:
+    ci:
+      state: on
+    development:
+      state: on
+submission_comment_media_auto_captioning:
+  state: hidden
+  applies_to: RootAccount
+  root_opt_in: true
+  display_name: Auto Captioning of Media Submission Comments
+  description: This feature enables automatic captioning of media submission comments.
+  environments:
+    ci:
+      state: allowed
+    development:
+      state: allowed

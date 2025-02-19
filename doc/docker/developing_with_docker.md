@@ -130,6 +130,19 @@ Go ahead and do so.
 Debug configurations will already be set up.
 You can attach to the currently running web server, or run specs for the currently active spec file.
 
+Canvas also comes with the Ruby LSP rspec extension in development mode.
+
+Add the following to your VS Code settings to run rspec tests via CodeLense UI elements:
+```json
+...
+"rubyLsp.addonSettings": {
+  "Ruby LSP RSpec": {
+    "rspecCommand": "cd /usr/src/app && rspec"
+  }
+}
+...
+```
+
 ### Debugging
 
 A Ruby debug server is running in development mode on the web and job containers
@@ -269,6 +282,18 @@ Set `rich-content-service` `app-host` to `"http://rce.canvas.docker:3000"` in `c
 rich-content-service:
   app-host: "http://rce.canvas.docker:3000"
 ```
+
+### StatsD
+The optional StatsD service simply intercepts UDP traffic to port 8125 and echoes it.
+
+This is useful if you want to understand what metrics are being sent to DataDog when
+the application is running in production.
+
+To enable this service, add `docker-compose/statsd.override.yml` to your .env file
+
+Next, stop and start any running containers (a restart is not sufficient since environment variables change).
+
+Finally, tail the statsd service logs to see what metrics Canvas is recording: `docker compose logs -ft statsd`.
 
 ## Tips
 

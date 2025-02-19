@@ -27,6 +27,7 @@ import {
   IconArrowOpenDownLine,
   IconArrowOpenUpLine,
   IconAttachMediaLine,
+  IconWarningSolid,
 } from '@instructure/ui-icons'
 import UploadMedia from '@instructure/canvas-media'
 import {formatTracksForMediaPlayer} from '@canvas/canvas-media-player'
@@ -40,20 +41,14 @@ import {
 } from '@canvas/upload-media-translations'
 import {Modal} from '@instructure/ui-modal'
 import {NumberInput} from '@instructure/ui-number-input'
-import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {SimpleSelect} from '@instructure/ui-simple-select'
 import {Table} from '@instructure/ui-table'
 import {Text} from '@instructure/ui-text'
 import {TextArea} from '@instructure/ui-text-area'
 import {TextInput} from '@instructure/ui-text-input'
 import _ from 'lodash'
-import {
-  OBSERVER_ENROLLMENTS_QUERY,
-  type ObserverEnrollmentQueryResult,
-  type ObserverEnrollmentConnectionUser,
-} from '../graphql/Queries'
+import {type ObserverEnrollmentConnectionUser} from '../graphql/Queries'
 import Pill from './Pill'
-import {useQuery} from '@apollo/client'
 import {AlertManagerContext} from '@canvas/alerts/react/AlertManager'
 import {
   FileAttachmentUpload,
@@ -63,9 +58,9 @@ import {
   addAttachmentsFn,
   removeAttachmentFn,
 } from '@canvas/message-attachments'
-import type {CamelizedAssignment, CamelizedStudent} from '@canvas/grading/grading.d'
+import type {CamelizedAssignment} from '@canvas/grading/grading.d'
 import {View} from '@instructure/ui-view'
-import type {AxiosResponse} from 'axios'
+import {useObserverEnrollments} from './hooks/useObserverEnrollments'
 
 export enum MSWLaunchContext {
   ASSIGNMENT_CONTEXT,
@@ -291,12 +286,12 @@ function filterStudents(criterion: FilterCriterion, students: Student[], cutoff:
         }
         break
       case 'scored_more_than':
-        if (student.score && student.score > cutoff) {
+        if (typeof student.score === 'number' && student.score > cutoff) {
           newfilteredStudents.push(student)
         }
         break
       case 'scored_less_than':
-        if (student.score && student.score < cutoff) {
+        if (typeof student.score === 'number' && student.score < cutoff) {
           newfilteredStudents.push(student)
         }
         break
@@ -311,12 +306,12 @@ function filterStudents(criterion: FilterCriterion, students: Student[], cutoff:
         }
         break
       case 'total_grade_higher_than':
-        if (student.currentScore && student.currentScore > cutoff) {
+        if (typeof student.currentScore === 'number' && student.currentScore > cutoff) {
           newfilteredStudents.push(student)
         }
         break
       case 'total_grade_lower_than':
-        if (student.currentScore && student.currentScore < cutoff) {
+        if (typeof student.currentScore === 'number' && student.currentScore < cutoff) {
           newfilteredStudents.push(student)
         }
         break
@@ -415,6 +410,7 @@ const MessageStudentsWhoDialog = ({
   const [open, setOpen] = useState(true)
   const [sending, setSending] = useState(false)
   const [message, setMessage] = useState('')
+  const [isSubmitted, setIsSubmitted] = useState(false)
 
   const initializeSelectedObservers = (studentCollection: Student[]) =>
     studentCollection.reduce(
@@ -439,14 +435,10 @@ const MessageStudentsWhoDialog = ({
   const [mediaTitle, setMediaTitle] = useState<string>('')
   const close = () => setOpen(false)
 
-  const {loading, data} = useQuery<ObserverEnrollmentQueryResult>(OBSERVER_ENROLLMENTS_QUERY, {
-    variables: {
-      courseId: assignment?.courseId || courseId,
-      studentIds: students.map(student => student.id),
-    },
-  })
-
-  const observerEnrollments = data?.course?.enrollmentsConnection?.nodes || []
+  const {loading, observerEnrollments} = useObserverEnrollments(
+    assignment?.courseId || courseId,
+    students,
+  )
 
   const observersByStudentID = observerEnrollments.reduce(
     (results, enrollment) => {
@@ -526,17 +518,18 @@ const MessageStudentsWhoDialog = ({
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [pendingUploads, setPendingUploads] = useState([])
 
-  const isFormDataValid: boolean =
-    message.trim().length > 0 &&
+  const isMessagePresent: boolean = message.trim().length > 0
+  const areRecipientsPresent: boolean =
     selectedStudents.length + Object.values(selectedObservers).flat().length > 0
+  const isFormDataValid: boolean = isMessagePresent && areRecipientsPresent
 
   useEffect(() => {
-    if (!loading && data) {
+    if (!loading && observerEnrollments) {
       setObserverRecipientCount(calculateObserverRecipientCount(selectedObservers))
     }
   }, [
     loading,
-    data,
+    observerEnrollments,
     selectedCriterion,
     sortedStudents,
     cutoff,
@@ -579,6 +572,10 @@ const MessageStudentsWhoDialog = ({
   }
 
   const handleSendButton = () => {
+    setIsSubmitted(true)
+    if (!isFormDataValid) {
+      return
+    }
     if (pendingUploads.length) {
       // This notifies the AttachmentUploadSpinner to start spinning
       // which then calls onSend() when pendingUploads are complete.
@@ -593,7 +590,7 @@ const MessageStudentsWhoDialog = ({
       const args: SendMessageArgs = {
         recipientsIds: uniqueRecipientsIds,
         subject,
-        body: message,
+        body: message.trim(),
       }
 
       if (mediaUploadFile) {
@@ -715,7 +712,8 @@ const MessageStudentsWhoDialog = ({
       setSelectedObservers(
         filteredStudents.reduce(
           (map, student) => {
-            map[student.id] = [...observersByStudentID[student.id].map(observer => observer._id)]
+            const observersForStudent = observersByStudentID[student.id] ?? []
+            map[student.id] = [...observersForStudent.map(observer => observer._id)]
 
             return map
           },
@@ -886,6 +884,18 @@ const MessageStudentsWhoDialog = ({
               </Link>
             </Flex.Item>
           </Flex>
+          {!areRecipientsPresent && isSubmitted && (
+            <View as="div" margin="0 xxx-small xx-small 0">
+              <Text size="small" color="danger">
+                <View textAlign="center">
+                  <View as="div" display="inline-block" margin="0 xxx-small xx-small 0">
+                    <IconWarningSolid />
+                  </View>
+                  {I18n.t('Please select at least one recipient.')}
+                </View>
+              </Text>
+            </View>
+          )}
           {showTable && (
             <Table caption={I18n.t('List of students and observers')}>
               <Table.Head>
@@ -948,6 +958,23 @@ const MessageStudentsWhoDialog = ({
             placeholder={I18n.t('Type your message here…')}
             value={message}
             onChange={e => setMessage(e.target.value)}
+            messages={
+              !isMessagePresent && isSubmitted
+                ? [
+                    {
+                      type: 'error',
+                      text: (
+                        <View textAlign="center">
+                          <View as="div" display="inline-block" margin="0 xxx-small xx-small 0">
+                            <IconWarningSolid />
+                          </View>
+                          {I18n.t('A message is required to send this message.')}
+                        </View>
+                      ),
+                    },
+                  ]
+                : []
+            }
           />
 
           <Flex alignItems="start">
@@ -1005,7 +1032,6 @@ const MessageStudentsWhoDialog = ({
                   <Button
                     id="send-message-button" // EVAL-4242
                     data-testid="send-message-button"
-                    interaction={isFormDataValid ? 'enabled' : 'disabled'}
                     color="primary"
                     onClick={handleSendButton}
                   >

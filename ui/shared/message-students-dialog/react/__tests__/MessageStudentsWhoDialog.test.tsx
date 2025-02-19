@@ -24,10 +24,8 @@ import MessageStudentsWhoDialog, {
   type Props as ComponentProps,
   MSWLaunchContext,
 } from '../MessageStudentsWhoDialog'
-import {MockedProvider} from '@apollo/client/testing'
-import mockGraphqlQuery from '@canvas/graphql-query-mock'
-import {createCache} from '@canvas/apollo-v3'
-import {OBSERVER_ENROLLMENTS_QUERY, type ObserverEnrollmentQueryResult} from '../../graphql/Queries'
+import {MockedQueryClientProvider} from '@canvas/test-utils/query'
+import {queryClient} from '@canvas/query'
 import type {CamelizedAssignment} from '@canvas/grading/grading'
 const students: Student[] = [
   {
@@ -163,45 +161,39 @@ function makeProps(overrides: object = {}): ComponentProps {
     onClose: () => {},
     onSend: () => {},
     messageAttachmentUploadFolderId: '1',
+    courseId: '1',
     userId: '345',
     launchContext: MSWLaunchContext.ASSIGNMENT_CONTEXT,
     ...overrides,
   }
 }
 
-async function makeMocks(overrides = [], sameStudent = false) {
-  const variables = {courseId: '1', studentIds: ['100', '101', '102', '103']}
-  const allOverrides = [...overrides, {EnrollmentType: 'ObserverEnrollment'}]
-
-  const resultQuery = (await mockGraphqlQuery(
-    OBSERVER_ENROLLMENTS_QUERY,
-    allOverrides,
-    variables,
-  )) as {data: ObserverEnrollmentQueryResult}
-
-  const nodes = resultQuery.data?.course.enrollmentsConnection.nodes
-
-  nodes.forEach(function (node, index) {
-    node.user.name = 'Observer' + index
-    if (sameStudent) {
-      node.associatedUser._id = students[0].id
-    } else {
-      node.associatedUser._id = students[index].id
-    }
-  })
-
-  return [
-    {
-      request: {
-        query: OBSERVER_ENROLLMENTS_QUERY,
-        variables: {
-          courseId: '1',
-          studentIds: ['100', '101', '102', '103'],
+function makeMocks() {
+  queryClient.setQueryData(['ObserversForStudents', '1', '100,101,102,103'], {
+    pages: [
+      {
+        course: {
+          enrollmentsConnection: {
+            nodes: [
+              {
+                _id: '123',
+                type: 'ObserverEnrollment',
+                user: {_id: '456', name: 'Observer0', sortableName: 'Observer0'},
+                associatedUser: {_id: '100'},
+              },
+              {
+                _id: '234',
+                type: 'ObserverEnrollment',
+                user: {_id: '567', name: 'Observer1', sortableName: 'Observer1'},
+                associatedUser: {_id: '101'},
+              },
+            ],
+            pageInfo: {hasNextPage: false, endCursor: '123'},
+          },
         },
       },
-      result: resultQuery,
-    },
-  ]
+    ],
+  })
 }
 
 function allObserverNames() {
@@ -222,28 +214,28 @@ function expectToBeUnselected(cell: HTMLElement) {
   expect(unselectedElement).toBeInTheDocument()
 }
 
-// unskip in EVAL-2535
-describe.skip('MessageStudentsWhoDialog', () => {
+describe('MessageStudentsWhoDialog', () => {
   it('hides the list of students and observers initially', async () => {
-    const mocks = await makeMocks()
+    makeMocks()
 
     const {queryByRole} = render(
-      <MockedProvider mocks={mocks} cache={createCache()}>
+      <MockedQueryClientProvider client={queryClient}>
         <MessageStudentsWhoDialog {...makeProps()} />
-      </MockedProvider>,
+      </MockedQueryClientProvider>,
     )
     await waitFor(() => {
       expect(queryByRole('table')).not.toBeInTheDocument()
     })
   })
 
-  it('shows students sorted by sortable name when the table is shown', async () => {
-    const mocks = await makeMocks()
+  // unskip in EVAL-2535
+  it.skip('shows students sorted by sortable name when the table is shown', async () => {
+    makeMocks()
 
     const {getByRole, getAllByRole, findByRole} = render(
-      <MockedProvider mocks={mocks} cache={createCache()}>
+      <MockedQueryClientProvider client={queryClient}>
         <MessageStudentsWhoDialog {...makeProps()} />
-      </MockedProvider>,
+      </MockedQueryClientProvider>,
     )
 
     const button = await findByRole('button', {name: 'Show all recipients'})
@@ -261,13 +253,14 @@ describe.skip('MessageStudentsWhoDialog', () => {
     expect(studentCells[4]).toHaveTextContent('Charlie Xi')
   })
 
-  it('shows observers sorted by the sortable name of the associated user when the table is shown', async () => {
-    const mocks = await makeMocks()
+  // unskip in EVAL-2535
+  it.skip('shows observers sorted by the sortable name of the associated user when the table is shown', async () => {
+    makeMocks()
 
     const {findByRole, getByRole, getAllByRole} = render(
-      <MockedProvider mocks={mocks} cache={createCache()}>
+      <MockedQueryClientProvider client={queryClient}>
         <MessageStudentsWhoDialog {...makeProps()} />
-      </MockedProvider>,
+      </MockedQueryClientProvider>,
     )
 
     const button = await findByRole('button', {name: 'Show all recipients'})
@@ -285,13 +278,14 @@ describe.skip('MessageStudentsWhoDialog', () => {
     expect(observerCells[4]).toHaveTextContent('')
   })
 
-  it('shows observers in the same cell sorted by the sortable name when observing the same student', async () => {
-    const mocks = await makeMocks([], true)
+  // unskip in EVAL-2535
+  it.skip('shows observers in the same cell sorted by the sortable name when observing the same student', async () => {
+    makeMocks()
 
     const {findByRole, getByRole, getAllByRole} = render(
-      <MockedProvider mocks={mocks} cache={createCache()}>
+      <MockedQueryClientProvider client={queryClient}>
         <MessageStudentsWhoDialog {...makeProps()} />
-      </MockedProvider>,
+      </MockedQueryClientProvider>,
     )
     const button = await findByRole('button', {name: 'Show all recipients'})
     fireEvent.click(button)
@@ -308,24 +302,26 @@ describe.skip('MessageStudentsWhoDialog', () => {
     expect(observerCells[4]).toHaveTextContent('')
   })
 
-  it('includes the total number of students in the checkbox label', async () => {
-    const mocks = await makeMocks()
+  // unskip in EVAL-2535
+  it.skip('includes the total number of students in the checkbox label', async () => {
+    makeMocks()
 
     const {findByRole} = render(
-      <MockedProvider mocks={mocks} cache={createCache()}>
+      <MockedQueryClientProvider client={queryClient}>
         <MessageStudentsWhoDialog {...makeProps()} />
-      </MockedProvider>,
+      </MockedQueryClientProvider>,
     )
     expect(await findByRole('checkbox', {name: /Students/})).toHaveAccessibleName('4 Students')
   })
 
-  it('updates total number of students in checkbox label when student is removed from list', async () => {
-    const mocks = await makeMocks()
+  // unskip in EVAL-2535
+  it.skip('updates total number of students in checkbox label when student is removed from list', async () => {
+    makeMocks()
 
     const {findByRole, findByTestId, findAllByTestId} = render(
-      <MockedProvider mocks={mocks} cache={createCache()}>
+      <MockedQueryClientProvider client={queryClient}>
         <MessageStudentsWhoDialog {...makeProps()} />
-      </MockedProvider>,
+      </MockedQueryClientProvider>,
     )
 
     expect(await findByTestId('total-student-checkbox')).toHaveAccessibleName('4 Students')
@@ -341,24 +337,33 @@ describe.skip('MessageStudentsWhoDialog', () => {
     expect(await findByTestId('total-student-checkbox')).toHaveAccessibleName('3 Students')
   })
 
-  it('includes the total number of observers in the checkbox label', async () => {
-    const mocks = await makeMocks()
+  it('includes the total number of observers selected in the checkbox label', async () => {
+    makeMocks()
+
+    students.forEach(student => {
+      student.submittedAt = null
+      student.workflowState = 'unsubmitted'
+    })
 
     const {findByRole} = render(
-      <MockedProvider mocks={mocks} addTypename={false}>
+      <MockedQueryClientProvider client={queryClient}>
         <MessageStudentsWhoDialog {...makeProps()} />
-      </MockedProvider>,
+      </MockedQueryClientProvider>,
     )
+    const checkbox = await findByRole('checkbox', {name: /Observers/})
+    expect(checkbox).toHaveAccessibleName('0 Observers')
+    fireEvent.click(checkbox)
     expect(await findByRole('checkbox', {name: /Observers/})).toHaveAccessibleName('2 Observers')
   })
 
-  it('updates total number of observers in checkbox label when observer is added to list', async () => {
-    const mocks = await makeMocks()
+  // unskip in EVAL-2535
+  it.skip('updates total number of observers in checkbox label when observer is added to list', async () => {
+    makeMocks()
 
     const {findByRole, findByTestId, findAllByTestId} = render(
-      <MockedProvider mocks={mocks} cache={createCache()}>
+      <MockedQueryClientProvider client={queryClient}>
         <MessageStudentsWhoDialog {...makeProps()} />
-      </MockedProvider>,
+      </MockedQueryClientProvider>,
     )
 
     expect(await findByTestId('total-observer-checkbox')).toHaveAccessibleName('0 Observers')
@@ -376,12 +381,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
 
   describe('available criteria', () => {
     it('includes score-related options but no "Marked incomplete" option for point-based assignments', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getAllByRole, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -395,12 +400,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('includes "Marked incomplete" but no score-related options for pass-fail assignments', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByLabelText, getAllByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({assignment: passFailAssignment})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -414,12 +419,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('does not include "Marked incomplete" or score-related options for ungraded assignments', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getAllByRole, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({assignment: ungradedAssignment})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -430,12 +435,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('includes "Have Submitted" and "Have not yet submitted" if the assignment accepts digital submissions', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getAllByRole, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -445,12 +450,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('does not include "Have Submitted" and "Have not yet submitted" if the assignment does not accept digital submissions', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getAllByRole, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({assignment: unsubmittableAssignment})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -460,12 +465,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('includes "Reassigned" if the assignment has a due date and allows more than one attempt', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getAllByRole, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -474,12 +479,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('does not include "Reassigned" if the assignment does not have a due date', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getAllByRole, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({assignment: passFailAssignment})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -488,12 +493,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('does not include "Reassigned" if the assignment does not allow more than one submission', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getAllByRole, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({assignment: ungradedAssignment})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -502,12 +507,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('does not include "Reassigned" if the assignment is on paper', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getAllByRole, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({assignment: unsubmittableAssignment})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -518,12 +523,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
 
   describe('cutoff input', () => {
     it('is shown only when "Scored more than" or "Scored less than" is selected', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {getByRole, findByTestId, getByTestId, queryByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       await waitFor(() => {
         expect(queryByTestId('cutoff-input')).not.toBeInTheDocument()
@@ -545,12 +550,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('foot-note is rendered along with the cutoff-input', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByTestId, getByText, getByTestId, queryByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       await waitFor(() => {
@@ -583,12 +588,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
 
       students[0].grade = '8'
       students[1].grade = '10'
-      const mocks = await makeMocks()
+      makeMocks()
 
-      const {findByRole, getByLabelText, getByText, findByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+      const {getByLabelText, getByText, findByTestId} = render(
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
       expect(await findByTestId('total-student-checkbox')).toHaveAccessibleName('0 Students')
       expect(await findByTestId('total-observer-checkbox')).toHaveAccessibleName('0 Observers')
@@ -603,15 +608,15 @@ describe.skip('MessageStudentsWhoDialog', () => {
 
     describe('"Have submitted"', () => {
       it('renders a student cell if the student has workflowState pending_review and submittedAt', async () => {
-        const mocks = await makeMocks()
+        makeMocks()
 
         students[0].workflowState = 'pending_review'
         students[0].submittedAt = new Date()
 
         const {getByTestId, findByLabelText, getByText, getAllByRole, getByRole} = render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
+          <MockedQueryClientProvider client={queryClient}>
             <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
+          </MockedQueryClientProvider>,
         )
 
         const button = await findByLabelText(/For students who/)
@@ -631,15 +636,15 @@ describe.skip('MessageStudentsWhoDialog', () => {
       })
 
       it('renders a student cell with workflowState pending_review when "Not Graded" radio button is selected', async () => {
-        const mocks = await makeMocks()
+        makeMocks()
 
         students[0].workflowState = 'pending_review'
         students[0].submittedAt = new Date()
 
         const {findByLabelText, getByText, getAllByRole, getByRole, getByTestId} = render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
+          <MockedQueryClientProvider client={queryClient}>
             <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
+          </MockedQueryClientProvider>,
         )
 
         const button = await findByLabelText(/For students who/)
@@ -659,16 +664,16 @@ describe.skip('MessageStudentsWhoDialog', () => {
       })
 
       it('renders a student cell if the student does not have workflowState pending_review and has a grade defined when "Graded" radio button is selected', async () => {
-        const mocks = await makeMocks()
+        makeMocks()
 
         students[0].workflowState = 'graded'
         students[0].submittedAt = new Date()
         students[0].grade = 'A'
 
         const {findByLabelText, getByText, getAllByRole, getByRole, getByTestId} = render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
+          <MockedQueryClientProvider client={queryClient}>
             <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
+          </MockedQueryClientProvider>,
         )
 
         const button = await findByLabelText(/For students who/)
@@ -688,12 +693,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
       })
 
       it('student radio buttons render when "Have submitted" option is selected', async () => {
-        const mocks = await makeMocks()
+        makeMocks()
 
         const {getByTestId, findByLabelText, getByText} = render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
+          <MockedQueryClientProvider client={queryClient}>
             <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
+          </MockedQueryClientProvider>,
         )
 
         const button = await findByLabelText(/For students who/)
@@ -707,15 +712,15 @@ describe.skip('MessageStudentsWhoDialog', () => {
       })
 
       it('displays all students that have submitted the assignment', async () => {
-        const mocks = await makeMocks()
+        makeMocks()
 
         students[0].submittedAt = new Date()
         students[1].submittedAt = new Date()
 
         const {getAllByRole, getByRole, findByLabelText, getByText, getByTestId} = render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
+          <MockedQueryClientProvider client={queryClient}>
             <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
+          </MockedQueryClientProvider>,
         )
 
         const button = await findByLabelText(/For students who/)
@@ -737,7 +742,7 @@ describe.skip('MessageStudentsWhoDialog', () => {
       })
 
       it('displays students that have submitted the assignment and have been graded', async () => {
-        const mocks = await makeMocks()
+        makeMocks()
 
         students[0].submittedAt = new Date()
         students[1].submittedAt = new Date()
@@ -745,9 +750,9 @@ describe.skip('MessageStudentsWhoDialog', () => {
         students[1].grade = '8'
 
         const {getAllByRole, getByRole, findByLabelText, getByText, getByTestId} = render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
+          <MockedQueryClientProvider client={queryClient}>
             <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
+          </MockedQueryClientProvider>,
         )
 
         const button = await findByLabelText(/For students who/)
@@ -768,7 +773,7 @@ describe.skip('MessageStudentsWhoDialog', () => {
       })
 
       it('displays students that have submitted the assignment but have NOT been graded', async () => {
-        const mocks = await makeMocks()
+        makeMocks()
 
         students[0].submittedAt = new Date()
         students[1].submittedAt = new Date()
@@ -776,9 +781,9 @@ describe.skip('MessageStudentsWhoDialog', () => {
         students[1].grade = '8'
 
         const {getAllByRole, getByRole, findByLabelText, getByText, getByTestId} = render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
+          <MockedQueryClientProvider client={queryClient}>
             <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
+          </MockedQueryClientProvider>,
         )
 
         const button = await findByLabelText(/For students who/)
@@ -800,12 +805,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Have not yet submitted" does not display students who are excused when selecting "skip excused" checkbox', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[2].excused = true
       const {getAllByRole, getByRole, findByLabelText, getByText, getByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -827,12 +832,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Have not yet submitted" does display students who are excused when "skip excused" checkbox is not selected', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[2].excused = true
       const {getAllByRole, getByRole, findByLabelText, getByText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -853,13 +858,13 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Have not yet submitted" displays students who have no submitted next to their observers', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[2].submittedAt = new Date()
       students[3].submittedAt = new Date()
       const {getAllByRole, getByRole, findByLabelText, getByText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -882,12 +887,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Have not been graded" does not display students who are excused', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[2].excused = true
       const {getAllByRole, getByRole, findByLabelText, getByText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -908,13 +913,13 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Have not been graded" displays students who do not have a grade', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[0].grade = '8'
       students[1].grade = '10'
       const {getAllByRole, getByRole, findByLabelText, getByText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -934,17 +939,16 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Scored more than" displays students who have scored higher than the score inputted', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[0].score = 10
       students[1].score = 5.2
       students[2].score = 4
       students[3].score = 0
-      const {getAllByRole, getByRole, getByLabelText, getByText, findByLabelText, getByTestId} =
-        render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
-            <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
-        )
+      const {getAllByRole, getByRole, getByText, findByLabelText, getByTestId} = render(
+        <MockedQueryClientProvider client={queryClient}>
+          <MessageStudentsWhoDialog {...makeProps()} />
+        </MockedQueryClientProvider>,
+      )
 
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -967,17 +971,16 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Scored less than" displays students who have scored lower than the score inputted', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[0].score = 10
       students[1].score = 6
       students[2].score = 5.2
       students[3].score = 0
-      const {getAllByRole, getByRole, findByLabelText, getByLabelText, getByText, getByTestId} =
-        render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
-            <MessageStudentsWhoDialog {...makeProps()} />
-          </MockedProvider>,
-        )
+      const {getAllByRole, getByRole, findByLabelText, getByText, getByTestId} = render(
+        <MockedQueryClientProvider client={queryClient}>
+          <MessageStudentsWhoDialog {...makeProps()} />
+        </MockedQueryClientProvider>,
+      )
 
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -996,18 +999,17 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Total Grade higher than" displays students who have a total grade higher than grade inputed', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[0].currentScore = 80
       students[1].currentScore = 50
       students[2].currentScore = 75
-      const {getAllByRole, getByRole, findByLabelText, getByLabelText, getByText, getByTestId} =
-        render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
-            <MessageStudentsWhoDialog
-              {...makeProps({assignment: null, pointsBasedGradingScheme: false})}
-            />
-          </MockedProvider>,
-        )
+      const {getAllByRole, getByRole, findByLabelText, getByText, getByTestId} = render(
+        <MockedQueryClientProvider client={queryClient}>
+          <MessageStudentsWhoDialog
+            {...makeProps({assignment: null, pointsBasedGradingScheme: false})}
+          />
+        </MockedQueryClientProvider>,
+      )
 
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -1027,18 +1029,17 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Total Grade lower than" displays students who have a total grade higher than grade inputed', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[0].currentScore = 80
       students[1].currentScore = 50
       students[2].currentScore = 75
-      const {getAllByRole, getByRole, findByLabelText, getByLabelText, getByText, getByTestId} =
-        render(
-          <MockedProvider mocks={mocks} cache={createCache()}>
-            <MessageStudentsWhoDialog
-              {...makeProps({assignment: null, pointsBasedGradingScheme: false})}
-            />
-          </MockedProvider>,
-        )
+      const {getAllByRole, getByRole, findByLabelText, getByText, getByTestId} = render(
+        <MockedQueryClientProvider client={queryClient}>
+          <MessageStudentsWhoDialog
+            {...makeProps({assignment: null, pointsBasedGradingScheme: false})}
+          />
+        </MockedQueryClientProvider>,
+      )
 
       const button = await findByLabelText(/For students who/)
       fireEvent.click(button)
@@ -1057,13 +1058,13 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Reassigned" displays students who have been asked to resubmit to the assignment', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[0].redoRequest = true
       students[1].redoRequest = true
       const {getAllByRole, getByRole, getByText, findByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -1086,13 +1087,13 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('"Marked incomplete" displays students who have been marked as "incomplete" on a pass/fail assignment', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       students[0].grade = 'incomplete'
       students[1].grade = 'incomplete'
       const {getAllByRole, getByRole, findByLabelText, getByText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({assignment: passFailAssignment})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -1116,13 +1117,14 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
   })
 
-  describe('default subject', () => {
+  // unskip in EVAL-2535
+  describe.skip('default subject', () => {
     it('is set to the first criteria that is listed upon opening the modal', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const subjectInput = await findByTestId('subject-input')
@@ -1130,11 +1132,11 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('is updated when a new criteria is selected', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByLabelText, getByText, findByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -1146,11 +1148,11 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('is updated to represent the cutoff input when scored more/less than criteria is selected', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByLabelText, getByText, findByTestId, getByLabelText} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByLabelText(/For students who/)
@@ -1172,7 +1174,8 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
   })
 
-  describe('students selection', () => {
+  // unskip in EVAL-2535
+  describe.skip('students selection', () => {
     beforeEach(() => {
       students[0].submittedAt = null
       students[1].submittedAt = null
@@ -1181,11 +1184,11 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('selects all students by default', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1196,11 +1199,11 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('sets the students checkbox as checked when all students are selected', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1215,11 +1218,11 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('sets the students checkbox as unchecked when all students are unselected', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1237,12 +1240,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('sets the students checkbox as indeterminate when selected students length is between 1 and the total number of students', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1270,12 +1273,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('sets the students checkbox as disabled when the students list is empty', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({students: []})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1291,12 +1294,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('unselects a selected student by clicking on the student cell', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1309,12 +1312,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('selects an unselected student by clicking on the student cell', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1329,7 +1332,8 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
   })
 
-  describe('observers selection', () => {
+  // unskip in EVAL-2535
+  describe.skip('observers selection', () => {
     beforeEach(() => {
       students[0].submittedAt = null
       students[1].submittedAt = null
@@ -1338,11 +1342,11 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('unselects all observers by default', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1353,11 +1357,11 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('sets the observers checkbox as checked when all observers are selected', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1375,11 +1379,11 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('sets the observers checkbox as unchecked when all observers are unselected', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const {findByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1395,12 +1399,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('sets the observers checkbox as indeterminate when selected students length is between 1 and the total number of students', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1428,7 +1432,7 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('sets the observers checkbox as disabled when the observer list is empty', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
       const newStudent = {
         id: '104',
         name: 'Charlie Brown',
@@ -1439,9 +1443,9 @@ describe.skip('MessageStudentsWhoDialog', () => {
         submittedAt: undefined,
       }
       const {findByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({students: [newStudent]})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1457,12 +1461,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('unselects a selected observer by clicking on the observer cell', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1474,12 +1478,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('selects an unselected observer by clicking on the observer cell', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const button = await findByRole('button', {name: 'Show all recipients'})
@@ -1493,84 +1497,89 @@ describe.skip('MessageStudentsWhoDialog', () => {
   })
 
   describe('send message button', () => {
-    it('is disabled when the message body is empty', async () => {
-      const mocks = await makeMocks()
+    let onSend: jest.Mock<any, any>
+
+    beforeEach(() => {
+      onSend = jest.fn()
+      students.forEach(student => {
+        student.submittedAt = null
+      })
+    })
+
+    it('does not call onSend when the message body is empty', async () => {
+      makeMocks()
 
       const {findByRole, getByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
-          <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        <MockedQueryClientProvider client={queryClient}>
+          <MessageStudentsWhoDialog {...makeProps({onSend})} />
+        </MockedQueryClientProvider>,
       )
-
-      const recipientsButton = await findByRole('button', {name: 'Show all recipients'})
-      fireEvent.click(recipientsButton)
 
       const messageTextArea = getByTestId('message-input')
       fireEvent.change(messageTextArea, {target: {value: ''}})
 
       const sendButton = await findByRole('button', {name: 'Send'})
-      expect(sendButton).toBeDisabled()
+      fireEvent.click(sendButton)
+      expect(onSend).not.toHaveBeenCalled()
     })
 
-    it('is disabled when the message body has only whitespaces', async () => {
-      const mocks = await makeMocks()
+    it('does not call onSend when the message body has only whitespaces', async () => {
+      makeMocks()
 
       const {findByRole, getByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
-          <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        <MockedQueryClientProvider client={queryClient}>
+          <MessageStudentsWhoDialog {...makeProps({onSend})} />
+        </MockedQueryClientProvider>,
       )
-
-      const recipientsButton = await findByRole('button', {name: 'Show all recipients'})
-      fireEvent.click(recipientsButton)
 
       const messageTextArea = getByTestId('message-input')
       fireEvent.change(messageTextArea, {target: {value: '   '}})
 
       const sendButton = await findByRole('button', {name: 'Send'})
-      expect(sendButton).toBeDisabled()
+      fireEvent.click(sendButton)
+      expect(onSend).not.toHaveBeenCalled()
     })
 
-    it('is disabled when there are no students/observers selected', async () => {
-      const mocks = await makeMocks()
+    it('does not call onSend when there are no students/observers selected', async () => {
+      makeMocks()
 
-      const {findByRole} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
-          <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+      const {findByLabelText, findByRole, getByTestId} = render(
+        <MockedQueryClientProvider client={queryClient}>
+          <MessageStudentsWhoDialog {...makeProps({onSend})} />
+        </MockedQueryClientProvider>,
       )
 
-      const recipientsButton = await findByRole('button', {name: 'Show all recipients'})
-      const checkbox = (await findByRole('checkbox', {name: /Students/})) as HTMLInputElement
+      const messageTextArea = getByTestId('message-input')
+      fireEvent.change(messageTextArea, {target: {value: 'FOO BAR'}})
 
-      fireEvent.click(recipientsButton)
+      const checkbox = (await findByLabelText(/Students/)) as HTMLInputElement;
       fireEvent.click(checkbox)
 
       const sendButton = await findByRole('button', {name: 'Send'})
-      expect(sendButton).toBeDisabled()
+      fireEvent.click(sendButton)
+      expect(onSend).not.toHaveBeenCalled()
     })
 
-    it('is enabled when the message body is not empty and there is at least one student/observer selected', async () => {
-      const mocks = await makeMocks()
+    it('calls onSend when the message body is not empty and there is at least one student/observer selected', async () => {
+      makeMocks()
 
       const {findByRole, getByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
-          <MessageStudentsWhoDialog {...makeProps()} />
-        </MockedProvider>,
+        <MockedQueryClientProvider client={queryClient}>
+          <MessageStudentsWhoDialog {...makeProps({onSend})} />
+        </MockedQueryClientProvider>,
       )
-
-      const recipientsButton = await findByRole('button', {name: 'Show all recipients'})
-      fireEvent.click(recipientsButton)
 
       const messageTextArea = getByTestId('message-input')
       fireEvent.change(messageTextArea, {target: {value: 'FOO BAR'}})
 
       const sendButton = await findByRole('button', {name: 'Send'})
-      expect(sendButton).not.toBeDisabled()
+      fireEvent.click(sendButton)
+      expect(onSend).toHaveBeenCalled()
     })
   })
 
-  describe('onSend', () => {
+  // unskip in EVAL-2535
+  describe.skip('onSend', () => {
     let onClose: jest.Mock<any, any>
     let onSend: jest.Mock<any, any>
 
@@ -1580,12 +1589,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('is called with the specified subject', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({onClose, onSend})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const recipientsButton = await findByRole('button', {name: 'Show all recipients'})
@@ -1605,12 +1614,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('is called with the specified body', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({onClose, onSend})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const recipientsButton = await findByRole('button', {name: 'Show all recipients'})
@@ -1630,12 +1639,12 @@ describe.skip('MessageStudentsWhoDialog', () => {
     })
 
     it('is called with the selected students', async () => {
-      const mocks = await makeMocks()
+      makeMocks()
 
       const {findByRole, getByRole, getByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
+        <MockedQueryClientProvider client={queryClient}>
           <MessageStudentsWhoDialog {...makeProps({onClose, onSend})} />
-        </MockedProvider>,
+        </MockedQueryClientProvider>,
       )
 
       const recipientsButton = await findByRole('button', {name: 'Show all recipients'})
@@ -1656,41 +1665,6 @@ describe.skip('MessageStudentsWhoDialog', () => {
       expect(onSend).toHaveBeenCalledWith(
         expect.objectContaining({recipientsIds: ['101', '102', '103']}),
       )
-      expect(onClose).toHaveBeenCalled()
-    })
-
-    it('is called with the selected observers', async () => {
-      const mocks = await makeMocks()
-
-      const {findByRole, getByRole, getByTestId} = render(
-        <MockedProvider mocks={mocks} cache={createCache()}>
-          <MessageStudentsWhoDialog {...makeProps({onClose, onSend})} />
-        </MockedProvider>,
-      )
-
-      const recipientsButton = await findByRole('button', {name: 'Show all recipients'})
-      fireEvent.click(recipientsButton)
-
-      const checkbox = (await findByRole('checkbox', {name: /Students/})) as HTMLInputElement
-      fireEvent.click(checkbox)
-
-      const observerCells = allObserverNames().map(name => getByRole('button', {name}))
-      fireEvent.click(observerCells[0])
-      fireEvent.click(observerCells[1])
-
-      const subjectInput = getByTestId('subject-input')
-      fireEvent.change(subjectInput, {target: {value: 'SUBJECT'}})
-
-      const messageTextArea = getByTestId('message-input')
-      fireEvent.change(messageTextArea, {target: {value: 'BODY'}})
-
-      const sendButton = await findByRole('button', {name: 'Send'})
-      fireEvent.click(sendButton)
-
-      const observerIds = mocks[0].result.data?.course.enrollmentsConnection.nodes.map(
-        node => node.user._id,
-      )
-      expect(onSend).toHaveBeenCalledWith(expect.objectContaining({recipientsIds: observerIds}))
       expect(onClose).toHaveBeenCalled()
     })
   })

@@ -57,6 +57,7 @@ class Course < ActiveRecord::Base
 
   has_many :course_sections, inverse_of: :course
   has_many :active_course_sections, -> { where(workflow_state: "active") }, class_name: "CourseSection", inverse_of: :course
+  has_many :moved_sections, class_name: "CourseSection", foreign_key: "nonxlist_course_id", inverse_of: :course
   has_many :enrollments, -> { where("enrollments.workflow_state<>'deleted'") }, inverse_of: :course
 
   has_many :all_enrollments, class_name: "Enrollment", inverse_of: :course
@@ -221,6 +222,7 @@ class Course < ActiveRecord::Base
   has_many :content_migrations, as: :context, inverse_of: :context
   has_many :content_exports, as: :context, inverse_of: :context
   has_many :epub_exports, -> { where(type: nil).order("created_at DESC") }
+  has_many :course_reports, dependent: :destroy
 
   has_many :gradebook_filters, inverse_of: :course, dependent: :destroy
   attr_accessor :latest_epub_export
@@ -352,7 +354,7 @@ class Course < ActiveRecord::Base
                         link_text: -> { t("Import Status") },
                         link_target: ->(course) { "/courses/#{course.to_param}/content_migrations" },
                         should_show: lambda { |course, user|
-                          course.grants_any_right?(user, :manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS)
+                          course.grants_any_right?(user, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS)
                         }
 
   has_a_broadcast_policy
@@ -501,7 +503,7 @@ class Course < ActiveRecord::Base
 
     return unless just_published || (has_end_date != had_end_date) || (settings_before_last_save[:enable_course_paces] != settings[:enable_course_paces])
 
-    InstStatsd::Statsd.increment(enable_course_paces ? "course.paced.has_end_date" : "course.unpaced.has_end_date") if has_end_date
+    InstStatsd::Statsd.distributed_increment(enable_course_paces ? "course.paced.has_end_date" : "course.unpaced.has_end_date") if has_end_date
 
     return if just_published # Don't decrement on publish
 
@@ -1040,6 +1042,9 @@ class Course < ActiveRecord::Base
 
   scope :homeroom, -> { where(homeroom_course: true) }
   scope :syncing_subjects, -> { joins("INNER JOIN #{Course.quoted_table_name} AS homeroom ON homeroom.id = courses.homeroom_course_id").where("homeroom.homeroom_course = true AND homeroom.workflow_state <> 'deleted'").where(sis_batch_id: nil).where(sync_enrollments_from_homeroom: true) }
+
+  scope :horizon, -> { where(horizon_course: true) }
+  scope :not_horizon, -> { where(horizon_course: false) }
 
   def potential_collaborators
     current_users
@@ -1931,7 +1936,7 @@ class Course < ActiveRecord::Base
     can :read_prior_roster
 
     given do |user|
-      grants_any_right?(user, :manage_content, :manage_course_content_add) ||
+      grants_right?(user, :manage_course_content_add) ||
         (concluded? && grants_right?(user, :read_as_admin))
     end
     can :direct_share
@@ -2823,7 +2828,7 @@ class Course < ActiveRecord::Base
           cm.add_imported_item(new_file.folder, key: new_file.folder.id)
           map_merge(file, new_file)
         rescue => e
-          Canvas::Errors.capture(e)
+          Canvas::Errors.capture(e) unless e.message.include?("Cannot create attachments in deleted folders")
           Rails.logger.error "Couldn't copy file: #{e}"
           cm.add_warning(t(:file_copy_error, "Couldn't copy file \"%{name}\"", name: file.display_name || file.path_name), $!)
         end
@@ -3051,7 +3056,8 @@ class Course < ActiveRecord::Base
                                            visibilities,
                                            visibility,
                                            enrollment_state: opts[:enrollment_state],
-                                           exclude_enrollment_state: opts[:exclude_enrollment_state])
+                                           exclude_enrollment_state: opts[:exclude_enrollment_state],
+                                           section_ids: opts[:section_ids])
   end
 
   def enrollments_visible_to(user, opts = {})
@@ -3062,12 +3068,13 @@ class Course < ActiveRecord::Base
     apply_enrollment_visibilities_internal(enrollment_scope.except(:preload), user, visibilities, visibility)
   end
 
-  def apply_enrollment_visibilities_internal(scope, user, visibilities, visibility, enrollment_state: nil, exclude_enrollment_state: nil)
+  def apply_enrollment_visibilities_internal(scope, user, visibilities, visibility, enrollment_state: nil, exclude_enrollment_state: nil, section_ids: nil)
     if enrollment_state
       scope = scope.where(enrollments: { workflow_state: enrollment_state })
     elsif exclude_enrollment_state
       scope = scope.where.not(enrollments: { workflow_state: exclude_enrollment_state })
     end
+    scope = scope.where(enrollments: { course_section_id: section_ids }) if section_ids.present?
     # See also MessageableUsers (same logic used to get users across multiple courses) (should refactor)
     case visibility
     when :full then scope
@@ -3190,6 +3197,7 @@ class Course < ActiveRecord::Base
 
   CANVAS_K6_TAB_IDS = [TAB_HOME, TAB_ANNOUNCEMENTS, TAB_GRADES, TAB_MODULES].freeze
   COURSE_SUBJECT_TAB_IDS = [TAB_HOME, TAB_SCHEDULE, TAB_MODULES, TAB_GRADES, TAB_GROUPS].freeze
+  HORIZON_HIDDEN_TABS = [TAB_HOME, TAB_RUBRICS, TAB_OUTCOMES, TAB_COLLABORATIONS, TAB_COLLABORATIONS_NEW, TAB_DISCUSSIONS].freeze
 
   def self.default_tabs
     [{
@@ -3333,7 +3341,9 @@ class Course < ActiveRecord::Base
   end
 
   def self.horizon_course_nav_tabs
-    tabs = Course.default_tabs.reject { |tab| tab[:id] == TAB_HOME }
+    tabs = Course.default_tabs.reject do |tab|
+      HORIZON_HIDDEN_TABS.include?(tab[:id])
+    end
     tabs.find { |tab| tab[:id] == TAB_SYLLABUS }[:label] = t("Overview")
     tabs
   end
@@ -3391,7 +3401,7 @@ class Course < ActiveRecord::Base
                           })
     end
 
-    if account.feature_enabled?(:course_paces) && enable_course_paces && grants_any_right?(user, :manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS)
+    if account.feature_enabled?(:course_paces) && enable_course_paces && grants_any_right?(user, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS)
       default_tabs.insert(default_tabs.index { |t| t[:id] == TAB_MODULES } + 1, {
                             id: TAB_COURSE_PACES,
                             label: t("#tabs.course_paces", "Course Pacing"),
@@ -3400,8 +3410,12 @@ class Course < ActiveRecord::Base
                           })
     end
 
-    # Remove Home tab for Horizon courses
-    default_tabs.delete_at(0) if horizon_course?
+    # Remove already cached tabs for Horizon courses
+    if horizon_course?
+      default_tabs.delete_if do |tab|
+        HORIZON_HIDDEN_TABS.include?(tab[:id])
+      end
+    end
 
     opts[:include_external] = false if elementary_homeroom_course?
 
@@ -3517,13 +3531,13 @@ class Course < ActiveRecord::Base
 
       # remove tabs that the user doesn't have access to
       unless opts[:for_reordering]
-        delete_unless.call([TAB_HOME, TAB_ANNOUNCEMENTS, TAB_PAGES, TAB_OUTCOMES, TAB_CONFERENCES, TAB_COLLABORATIONS, TAB_MODULES], :read, :manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS)
+        delete_unless.call([TAB_HOME, TAB_ANNOUNCEMENTS, TAB_PAGES, TAB_OUTCOMES, TAB_CONFERENCES, TAB_COLLABORATIONS, TAB_MODULES], :read, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS)
 
         member_only_tabs = tabs.select { |t| t[:visibility] == "members" }
         tabs -= member_only_tabs if member_only_tabs.present? && !check_for_permission.call(:participate_as_student, :read_as_admin)
 
-        delete_unless.call([TAB_ASSIGNMENTS, TAB_QUIZZES], :read, :manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS)
-        delete_unless.call([TAB_SYLLABUS], :read, :read_syllabus, :manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS)
+        delete_unless.call([TAB_ASSIGNMENTS, TAB_QUIZZES], :read, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS)
+        delete_unless.call([TAB_SYLLABUS], :read, :read_syllabus, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS)
 
         admin_only_tabs = tabs.select { |t| t[:visibility] == "admins" }
         tabs -= admin_only_tabs if admin_only_tabs.present? && !check_for_permission.call(:read_as_admin)
@@ -3547,18 +3561,18 @@ class Course < ActiveRecord::Base
         delete_unless.call([TAB_FILES], :read_files, *RoleOverride::GRANULAR_FILE_PERMISSIONS)
 
         if item_banks_tab &&
-           !check_for_permission.call(:manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS)
+           !check_for_permission.call(*RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS)
           tabs.reject! { |tab| tab[:id] == item_banks_tab[:id] }
         end
         # remove outcomes tab for logged-out users or non-students
         outcome_tab = tabs.detect { |t| t[:id] == TAB_OUTCOMES }
-        tabs.delete(outcome_tab) if outcome_tab && (!user || !check_for_permission.call(:manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, :participate_as_student, :read_as_admin))
+        tabs.delete(outcome_tab) if outcome_tab && (!user || !check_for_permission.call(*RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, :participate_as_student, :read_as_admin))
 
         # remove hidden tabs from students
         additional_checks = {
-          TAB_ASSIGNMENTS => [:manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS],
-          TAB_SYLLABUS => [:manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS],
-          TAB_QUIZZES => [:manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS],
+          TAB_ASSIGNMENTS => [*RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS],
+          TAB_SYLLABUS => [*RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS],
+          TAB_QUIZZES => [*RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS],
           TAB_GRADES => [:view_all_grades, :manage_grades],
           TAB_FILES => RoleOverride::GRANULAR_FILE_PERMISSIONS,
           TAB_DISCUSSIONS => [:moderate_forum],
@@ -3569,7 +3583,7 @@ class Course < ActiveRecord::Base
           # tab shouldn't be shown to non-admins
           (t[:hidden] || t[:hidden_unused]) &&
             # not an admin user
-            (!user || !check_for_permission.call(:manage_content, *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, :read_as_admin)) &&
+            (!user || !check_for_permission.call(*RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS, :read_as_admin)) &&
             # can't do any of the additional things required
             (!additional_checks[t[:id]] || !check_for_permission.call(*additional_checks[t[:id]]))
         end
@@ -3748,7 +3762,6 @@ class Course < ActiveRecord::Base
                             :read_as_admin,
                             :manage_grades,
                             *RoleOverride::GRANULAR_MANAGE_ASSIGNMENT_PERMISSIONS,
-                            :manage_content,
                             *RoleOverride::GRANULAR_MANAGE_COURSE_CONTENT_PERMISSIONS
                           )
                         else
@@ -4453,7 +4466,7 @@ class Course < ActiveRecord::Base
   end
 
   def horizon_course?
-    root_account.feature_enabled?(:horizon_course_setting) && horizon_course
+    root_account&.feature_enabled?(:horizon_course_setting) && horizon_course
   end
 
   private
@@ -4525,7 +4538,7 @@ class Course < ActiveRecord::Base
   def log_course_pacing_publish_update
     if publishing?
       statsd_bucket = enable_course_paces? ? "paced" : "unpaced"
-      InstStatsd::Statsd.increment("course.#{statsd_bucket}.paced_courses")
+      InstStatsd::Statsd.distributed_increment("course.#{statsd_bucket}.paced_courses")
     end
   end
 
@@ -4533,7 +4546,7 @@ class Course < ActiveRecord::Base
     if publishing?
       statsd_bucket = enable_course_paces? ? "paced" : "unpaced"
       course_format_value = course_format.nil? ? "unset" : course_format
-      InstStatsd::Statsd.increment("course.#{statsd_bucket}.#{course_format_value}")
+      InstStatsd::Statsd.distributed_increment("course.#{statsd_bucket}.#{course_format_value}")
     end
   end
 
@@ -4592,7 +4605,7 @@ class Course < ActiveRecord::Base
 
     statsd_bucket = new_enable_paces_setting ? "paced" : "unpaced"
 
-    InstStatsd::Statsd.increment("course.#{statsd_bucket}.paced_courses")
+    InstStatsd::Statsd.distributed_increment("course.#{statsd_bucket}.paced_courses")
 
     log_course_format_update unless @course_format_change
   end
@@ -4604,7 +4617,7 @@ class Course < ActiveRecord::Base
     new_stats_course_format = setting_changes[1][:course_format].nil? ? "unset" : setting_changes[1][:course_format]
 
     statsd_bucket = new_enable_paces_setting ? "paced" : "unpaced"
-    InstStatsd::Statsd.increment("course.#{statsd_bucket}.#{new_stats_course_format}")
+    InstStatsd::Statsd.distributed_increment("course.#{statsd_bucket}.#{new_stats_course_format}")
   end
 
   def log_rqd_setting_enable_or_disable
@@ -4617,9 +4630,9 @@ class Course < ActiveRecord::Base
     return unless old_rqd_setting != new_rqd_setting # Skip if RQD setting was not changed
 
     if old_rqd_setting == false && new_rqd_setting == true
-      InstStatsd::Statsd.increment("course.settings.restrict_quantitative_data.enabled")
+      InstStatsd::Statsd.distributed_increment("course.settings.restrict_quantitative_data.enabled")
     elsif old_rqd_setting == true && new_rqd_setting == false
-      InstStatsd::Statsd.increment("course.settings.restrict_quantitative_data.disabled")
+      InstStatsd::Statsd.distributed_increment("course.settings.restrict_quantitative_data.disabled")
     end
   end
 end

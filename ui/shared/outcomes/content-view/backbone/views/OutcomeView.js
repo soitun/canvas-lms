@@ -31,6 +31,12 @@ import {addCriterionInfoButton} from '../../react/CriterionInfo'
 import 'jqueryui/dialog'
 import CalculationMethodContent from '@canvas/grading/CalculationMethodContent'
 import {raw} from '@instructure/html-escape'
+import {createRoot} from 'react-dom/client'
+import {createElement} from 'react';
+import {Text} from '@instructure/ui-text'
+import {View} from '@instructure/ui-view'
+import {TextInput} from '@instructure/ui-text-input'
+import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 
 const I18n = createI18nScope('OutcomeView')
 
@@ -67,6 +73,20 @@ export default class OutcomeView extends OutcomeContentBase {
             return I18n.t('mastery_error', 'Must be greater than or equal to 0')
           }
         },
+        calculation_int(data) {
+          switch (data.calculation_method) {
+            case 'decaying_average':
+              if (isNaN(data.calculation_int) || data.calculation_int < 1 || data.calculation_int > 99) {
+                return I18n.t('calculation_int_decaying_average_error', 'Must be between 1 and 99')
+              }
+              break
+            case 'n_mastery':
+              if (isNaN(data.calculation_int) || data.calculation_int < 1 || data.calculation_int > 10) {
+                return I18n.t('calculation_int_n_mastery_error', 'Must be between 1 and 10')
+              }
+              break
+          }
+        }
       },
       OutcomeContentBase.prototype.validations,
     )
@@ -283,6 +303,12 @@ export default class OutcomeView extends OutcomeContentBase {
           addCriterionInfoButton(this.$el.find('#react-info-link')[0])
         }
 
+        this._OutcomeFormInstUIInputs = this._createOutcomeFormInstUIInputs()
+        this._renderAllOutcomeFormInstUIInputs()
+        this.calculationMethodFormView.on(
+          'instUIInputCreated',
+          (payload) => this._OutcomeFormInstUIInputs.calculation_int = payload
+        )
         this.readyForm()
         break
       case 'loading':
@@ -339,7 +365,152 @@ export default class OutcomeView extends OutcomeContentBase {
     this.$('input:first').focus()
     this.screenreaderTitleFocus()
     this._afterRender()
+
+    this._outcomeMasteryAtContainer = (() => {
+      const container = this.$('#outcome_mastery_at_container')[0]
+      if(!container) return
+      return createRoot(container)
+    })()
+
+    this._renderOutcomeMasteryAtInput()
+
     return this
+  }
+
+  showErrors(errors) {
+    if (!this._OutcomeFormInstUIInputs) return
+    this._renderAllOutcomeFormInstUIInputs()
+    Object.keys(errors).forEach(key => {
+      this._OutcomeFormInstUIInputs[key]?.render(errors[key])
+    })
+    for (const key in this._OutcomeFormInstUIInputs) {
+      if (errors[key]) {
+        this._OutcomeFormInstUIInputs[key]?.inputElement()?.focus()
+        break
+      }
+    }
+    // return super.showErrors(errors)
+  }
+
+  _renderOutcomeMasteryAtInput(errorType) {
+    const errorMessage = {
+      'NaNError': {type: 'newError', text: I18n.t('mastery_at_nan_error', 'Must be a number')},
+      'rangeError': {type: 'newError', text: I18n.t('mastery_at_range_error', 'Must be between 1 and 99')},
+    }[errorType]
+    this._outcomeMasteryAtContainer?.render(createElement(View, { as:'div', margin: 'small' },
+      createElement(TextInput, {
+        name: 'mastery_at',
+        id: 'outcome_mastery_at',
+        renderLabel: ()=> createElement(Text, { weight: 'normal' }, 'Set mastery for any score at or above'),
+        defaultValue: '60',
+        width: '36ch',
+        renderAfterInput: ()=> createElement('div', {}, '%'),
+        messages: [
+          {type: 'hint', text: I18n.t('mastery_at_hint', 'Must be between 1 and 99')},
+          ...(errorMessage ? [errorMessage] : [])
+        ]
+      })
+    ))
+  }
+
+  validateOutcomeMasteryAtInput(){
+    const input = this.$('#outcome_mastery_at')[0]
+    if (!input) return null
+    const value = parseFloat(input.value)
+    if (isNaN(value)) {
+      this._renderOutcomeMasteryAtInput('NaNError')
+      input.focus()
+      return null
+    }
+    if(value < 1 || value > 99) {
+      this._renderOutcomeMasteryAtInput('rangeError')
+      input.focus()
+      return null
+    }
+    return input.value
+  }
+
+  _createOutcomeFormInstUIInputs() {
+    return {
+      title: {
+        root: (() => {
+          const el = this.$('#title_container')[0]
+          if(!el) return null
+          return {rootElement: createRoot(el), initialValue: el.dataset.initialValue}
+        })(),
+        render: (errorMessages) => {
+          this._OutcomeFormInstUIInputs.title.root?.rootElement.render(
+            createElement(View, {as: 'div', margin: 'none none small none'},
+              createElement(TextInput, {
+                name: 'title',
+                id: 'title',
+                isRequired: true,
+                defaultValue: this._OutcomeFormInstUIInputs.title.root?.initialValue,
+                width: '40ch',
+                placeholder: I18n.t('New Outcome'),
+                renderLabel: ()=> createElement(ScreenReaderContent, null, I18n.t('title', 'Name this outcome')),
+                messages: errorMessages?.map((m) => ({ text: m.message, type: 'newError' })),
+              })
+            )
+          )
+        },
+        inputElement: () => this.$('#title')[0],
+      },
+      display_name: {
+        root: (() => {
+          const el = this.$('#display_name_container')[0]
+          if(!el) return null
+          return {rootElement: createRoot(el), initialValue: el.dataset.initialValue}
+        })(),
+        render: (errorMessages) => {
+          this._OutcomeFormInstUIInputs.display_name.root?.rootElement.render(
+            createElement(View, {as: 'div', margin: 'none none small none'},
+              createElement(TextInput, {
+                name: 'display_name',
+                id: 'display_name',
+                defaultValue: this._OutcomeFormInstUIInputs.display_name.root?.initialValue,
+                width: '40ch',
+                renderLabel: ()=> createElement(ScreenReaderContent, null, I18n.t('display_name', 'Friendly name')),
+                messages: errorMessages?.map((m) => ({ text: m.message, type: 'newError' })),
+              })
+            )
+          )
+        },
+        inputElement: () => this.$('#display_name')[0],
+      },
+      mastery_points: {
+        root: (() => {
+          const el = this.$('#mastery_point_container')[0]
+          if(!el) return null
+          return {rootElement: createRoot(el), initialValue: el.dataset.initialValue}
+        })(),
+        render: (errorMessages) => {
+          this._OutcomeFormInstUIInputs.mastery_points.root?.rootElement.render(
+            createElement(View, {as: 'div', margin: 'none none small none'},
+              createElement(TextInput, {
+                name: 'mastery_points',
+                id: 'mastery_points',
+                as: 'span',
+                defaultValue: this._OutcomeFormInstUIInputs.mastery_points.root?.initialValue,
+                display: 'inline-block',
+                width: '8ch',
+                renderLabel: ()=> createElement(ScreenReaderContent, null, I18n.t('mastery', 'mastery_at')),
+                messages: errorMessages?.map((m) => ({ text: m.message, type: 'newError' })),
+              })
+            )
+          )
+        },
+        inputElement: () => this.$('#mastery_points')[0],
+      },
+      // this stub will be replaced every time a 'instUIInputCreated' event is received.
+      calculation_int: { render: ()=>{} },
+    }
+  }
+
+  _renderAllOutcomeFormInstUIInputs() {
+    for (const key in this._OutcomeFormInstUIInputs) {
+      this._OutcomeFormInstUIInputs[key]?.render()
+    }
   }
 }
 OutcomeView.initClass()

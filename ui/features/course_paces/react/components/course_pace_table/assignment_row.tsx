@@ -31,14 +31,14 @@ import {
   IconPublishSolid,
   IconQuizLine,
   IconUnpublishedLine,
+  IconWarningLine
 } from '@instructure/ui-icons'
 import {ScreenReaderContent} from '@instructure/ui-a11y-content'
 import {Table} from '@instructure/ui-table'
 import {Text} from '@instructure/ui-text'
 import {View} from '@instructure/ui-view'
-
 import {coursePaceDateFormatter} from '../../shared/api/backend_serializer'
-import type {CoursePaceItem, CoursePace, StoreState} from '../../types'
+import type {CoursePaceItem, CoursePace, StoreState, MasteryPathsData} from '../../types'
 import type {BlackoutDate} from '../../shared/types'
 import {
   getCoursePace,
@@ -58,6 +58,9 @@ import {
 } from '../../reducers/ui'
 import {getBlackoutDates} from '../../shared/reducers/blackout_dates'
 import type {Change} from '../../utils/change_tracking'
+import CyoeHelper from '@canvas/conditional-release-cyoe-helper'
+import {Link} from '@instructure/ui-link'
+import {Pill} from '@instructure/ui-pill'
 
 const I18n = createI18nScope('course_paces_assignment_row')
 
@@ -330,6 +333,56 @@ export class AssignmentRow extends React.Component<ComponentProps, LocalState> {
     )
   }
 
+  renderSubmissionStatus = () => {
+    const { submittable, submitted_at } = this.props.coursePaceItem
+    const dueDate = moment(this.props.dueDate)
+    const now = moment()
+    const isFeatureEnabled = window.ENV.FEATURES.course_pace_pacing_status_labels
+
+    // Not submittable or not due yet, no label needed
+    if (!submittable || dueDate.isAfter(now) || !isFeatureEnabled) {
+      return null
+    }
+
+    const submittedAt = submitted_at ? moment(submitted_at) : null
+    const status = !submittedAt
+      ? I18n.t("No Submission")
+      : submittedAt.isAfter(dueDate)
+      ? I18n.t("Late Submission")
+      : null
+
+    return status ? (
+      <span style={{whiteSpace: "nowrap"}}>
+        <Text color="danger">
+          <IconWarningLine size="x-small" /> {status}
+        </Text>
+      </span>
+    ) : null
+  }
+
+  renderMasteryPathsInfo({ isTrigger, releasedLabel }: MasteryPathsData, moduleItemId: string) {
+    if (!isTrigger && !releasedLabel) return null;
+
+    return (
+      <Flex gap="small" data-testid={`mastery-paths-data-${moduleItemId}`}>
+        {isTrigger && moduleItemId && (
+          <Flex.Item>
+            <Link href={`${ENV.CONTEXT_URL_ROOT}/modules/items/${moduleItemId}/edit_mastery_paths`}>
+              {I18n.t('Mastery Paths')}
+            </Link>
+          </Flex.Item>
+        )}
+        {releasedLabel && (
+          <Flex.Item>
+            <Pill data-testid={`${releasedLabel}-${moduleItemId}`}>
+              <i className="icon-mastery-paths" /> {releasedLabel}
+            </Pill>
+          </Flex.Item>
+        )}
+      </Flex>
+    );
+  }
+
   render() {
     const labelMargin = this.props.isStacked ? '0 0 0 small' : undefined
 
@@ -338,6 +391,10 @@ export class AssignmentRow extends React.Component<ComponentProps, LocalState> {
         background: this.state.hovering ? '#eef7ff' : '#fff',
       },
     }
+    const contextType = this.props.context_type
+
+    const coursePaceItem = this.props.coursePaceItem;
+    const masteryPathsData: MasteryPathsData = CyoeHelper.getItemData(coursePaceItem.assignment_id, coursePaceItem.submittable);
 
     return (
       <InstUISettingsProvider theme={{componentOverrides}}>
@@ -349,7 +406,14 @@ export class AssignmentRow extends React.Component<ComponentProps, LocalState> {
           {...pick(this.props, ['hover', 'isStacked', 'headers'])}
         >
           <Table.Cell data-testid="pp-title-cell">
-            <View margin={labelMargin}>{this.renderTitle()}</View>
+            <Flex justifyItems="space-between">
+              <Flex.Item>
+                <View margin={labelMargin}>{this.renderTitle()}</View>
+              </Flex.Item>
+              <Flex.Item>
+                {masteryPathsData && ENV.FEATURES.course_pace_pacing_with_mastery_paths && this.renderMasteryPathsInfo(masteryPathsData, coursePaceItem.module_item_id)}
+              </Flex.Item>
+            </Flex>
           </Table.Cell>
           <Table.Cell data-testid="pp-duration-cell" textAlign="center">
             <View data-testid="duration-input" margin={labelMargin}>
@@ -362,6 +426,7 @@ export class AssignmentRow extends React.Component<ComponentProps, LocalState> {
                 <span style={{whiteSpace: this.props.isStacked ? 'normal' : 'nowrap'}}>
                   {this.renderDate()}
                 </span>
+                {contextType === 'Enrollment' && this.renderSubmissionStatus()}
               </View>
             </Table.Cell>
           ) : (

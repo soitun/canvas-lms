@@ -80,7 +80,6 @@ describe "context modules" do
     end
 
     it "is able to work with granular permisions properly" do
-      @teacher.account.enable_feature!(:granular_permissions_manage_course_content)
       visit_modules_index_page(@course.id)
       modules_index_settings_button.click
       expect(module_index_settings_menu).to include_text("Import Stuff")
@@ -202,27 +201,6 @@ describe "context modules" do
       gear = f("#context_module_item_#{@subheader_tag.id} .al-trigger")
       gear.click
       expect(f("#context_module_item_#{@subheader_tag.id}")).not_to contain_css("a.menu_tool_link")
-    end
-
-    it "adds links to newly created modules" do
-      Account.site_admin.disable_feature! :selective_release_ui_api
-      get "/courses/#{@course.id}/modules"
-      f(".add_module_link").click
-      wait_for_ajaximations
-      form = f("#add_context_module_form")
-      replace_content(form.find_element(:id, "context_module_name"), "new module")
-      submit_form(form)
-      wait_for_ajaximations
-
-      new_module = ContextModule.last
-      expect(new_module.name).to eq "new module"
-
-      gear = f("#context_module_#{new_module.id} .header .al-trigger")
-      gear.click
-      link = f("#context_module_#{new_module.id} .header li a.menu_tool_link")
-      expect(link).to be_displayed
-      expect(link.text).to match_ignoring_whitespace(@tool.label_for(:module_menu))
-      expect(link["href"]).to eq course_external_tool_url(@course, @tool, launch_type: "module_menu", modules: [new_module.id])
     end
 
     it "adds links to newly created modules with differentiated modules tray" do

@@ -960,7 +960,20 @@ describe OAuth2ProviderController do
             other_key.save!
           end
 
-          it { is_expected.to have_http_status :bad_request }
+          it { expect(subject).to have_http_status :bad_request }
+        end
+
+        context "with public key url setting and invalid kid in the header" do
+          before do
+            allow(CanvasHttp).to receive(:get).and_return(double(body: '{"keys": []}'))
+            key.public_jwk_url = "http://localhost"
+            key.save!
+          end
+
+          it do
+            expect(subject).to have_http_status :bad_request
+            expect(response.body).to match(/KidNotFound/)
+          end
         end
 
         context "with missing assertion" do
@@ -1017,10 +1030,37 @@ describe OAuth2ProviderController do
   describe "POST accept" do
     let_once(:user) { User.create! }
     let_once(:key) { DeveloperKey.create! }
-    let(:session_hash) { { oauth2: { client_id: key.id, redirect_uri: Canvas::OAuth::Provider::OAUTH2_OOB_URI } } }
-    let(:oauth_accept) { post :accept, session: session_hash }
+    let(:custom_csrf_token) { "123" }
+    let(:session_hash) { { oauth2: { client_id: key.id, redirect_uri: Canvas::OAuth::Provider::OAUTH2_OOB_URI, custom_csrf_token: } } }
+    let(:oauth_accept) { post :accept, params: { custom_csrf_token: }, session: session_hash }
 
     before { user_session user }
+
+    it "skips standard CSRF protection" do
+      allow(controller).to receive(:action_name).and_return("accept")
+      expect(controller.send(:skip_csrf?)).to be true
+    end
+
+    it "with wrong custom CSRF token" do
+      post :accept, session: session_hash, params: { custom_csrf_token: "456" }
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    context "with custom_csrf_token FF off" do
+      before do
+        Account.site_admin.disable_feature! :csrf_oauth2_fix
+      end
+
+      it "does NOT skip standard CSRF protection if :csrf_oauth2_fix is off" do
+        allow(controller).to receive(:action_name).and_return("accept")
+        expect(controller.send(:skip_csrf?)).to be false
+      end
+
+      it "and custom_csrf_token is empty" do
+        post :accept, session: session_hash
+        expect(response).to have_http_status(:redirect)
+      end
+    end
 
     it "uses the global id of the user for generating the code" do
       expect(Canvas::OAuth::Token).to receive(:generate_code_for).with(
@@ -1054,7 +1094,7 @@ describe OAuth2ProviderController do
         key.id,
         { scopes: nil, remember_access: "1", purpose: nil, code_challenge: nil, code_challenge_method: nil }
       ).and_return("code")
-      post :accept, params: { remember_access: "1" }, session: session_hash
+      post :accept, params: { remember_access: "1", custom_csrf_token: }, session: session_hash
     end
 
     it "removes oauth session info after code generation" do
@@ -1086,7 +1126,8 @@ describe OAuth2ProviderController do
             client_id: key.id,
             redirect_uri: Canvas::OAuth::Provider::OAUTH2_OOB_URI,
             code_challenge:,
-            code_challenge_method:
+            code_challenge_method:,
+            custom_csrf_token:
           }
         }
       end
@@ -1101,7 +1142,7 @@ describe OAuth2ProviderController do
             remember_access: nil,
             purpose: nil,
             code_challenge:,
-            code_challenge_method:
+            code_challenge_method:,
           }
         ).and_return("code")
 

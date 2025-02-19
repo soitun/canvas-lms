@@ -151,7 +151,7 @@ module Lti
         end
       rescue => e
         code ||= response_code_for_rescue(e) if e
-        InstStatsd::Statsd.increment("canvas.deep_linking_controller.request_error", tags: { code: })
+        InstStatsd::Statsd.distributed_increment("canvas.deep_linking_controller.request_error", tags: { code: })
         raise e
       end
 
@@ -189,7 +189,7 @@ module Lti
       def require_context_update_rights
         return unless create_resources_from_content_items?
 
-        authorized_action(@context, @current_user, %i[manage_content manage_course_content_add update])
+        authorized_action(@context, @current_user, %i[manage_course_content_add update])
       end
 
       def require_tool

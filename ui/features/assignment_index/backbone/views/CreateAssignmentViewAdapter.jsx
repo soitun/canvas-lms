@@ -1,4 +1,3 @@
-/* eslint-disable no-fallthrough */
 /*
  * Copyright (C) 2024 - present Instructure, Inc.
  *
@@ -35,18 +34,15 @@ const CreateAssignmentViewAdapter = ({assignment, assignmentGroup, closeHandler}
   const ONLINE_QUIZ = 'online_quiz'
   const DISCUSSION_TOPIC = 'discussion_topic'
 
-  const moreOptionsHandler = (data, isNewAssignment) => {
+  const moreOptionsHandler = (data, isNewAssignment = false) => {
     const assignmentModel = assignment || generateNewAssignment(assignmentGroup)
 
     const mappedData = {
-      submission_type: [data.type],
       name: data.name,
       due_at: data.dueAt,
       points_possible: data.points,
       post_to_sis: data.syncToSIS,
     }
-
-    assignmentModel.submissionTypes(mappedData.submission_type)
 
     // Redirect to appropriate "edit" page
     if (data.type === ONLINE_QUIZ) {
@@ -58,11 +54,10 @@ const CreateAssignmentViewAdapter = ({assignment, assignmentGroup, closeHandler}
     }
   }
 
-  const saveHandler = async data => {
+  const saveHandler = async (data, isNewAssignment = false) => {
     const assignmentModel = assignment || generateNewAssignment(assignmentGroup)
 
     let mappedData = {
-      submission_type: [data.type],
       name: data.name,
       due_at: data.dueAt !== '' ? data.dueAt : null,
       points_possible: data.points,
@@ -76,7 +71,10 @@ const CreateAssignmentViewAdapter = ({assignment, assignmentGroup, closeHandler}
       }
     }
 
-    assignmentModel.submissionTypes(mappedData.submission_type)
+    // If this is a new assignment, we need to add the appropriate submission type
+    if (isNewAssignment) {
+      mappedData.submission_types =  getSubmissionType(data)
+    }
 
     // Save the assignment model (Should fire backend call)
     try {
@@ -91,17 +89,9 @@ const CreateAssignmentViewAdapter = ({assignment, assignmentGroup, closeHandler}
     }
   }
 
-  const getAssignmentType = assignment => {
-    const submissionTypes = assignment.submissionTypes()
-    if (submissionTypes.length === 0) {
-      return 'online'
-    }
-    return submissionTypes[0]
-  }
-
   const adaptAssignment = () => ({
-    assignmentGroupId: assignmentGroup ? assignmentGroup.id : null,
-    type: getAssignmentType(assignment),
+    type: assignment.assignmentType(),
+    submissionTypes: assignment.submissionTypes(),
     name: assignment.name(),
     dueAt: assignment.dueAt(),
     lockAt: assignment.lockAt(),
@@ -202,6 +192,14 @@ const launchDiscussionTopicEdit = (assignment, assignmentGroup, data, isNewAssig
   }
 }
 
+const getSubmissionType = (formData) => {
+  if (['discussion_topic', 'online_quiz', 'external_tool', 'not_graded'].includes(formData.type)) {
+    return [formData.type]
+  } else {
+    return ['online_text_entry']
+  }
+}
+
 const addFrozenField = (frozenFields, field) => {
   if (!frozenFields.includes(field)) {
     frozenFields.push(field)
@@ -219,10 +217,13 @@ const getFrozenFields = assignment => {
       switch (r) {
         case 'content':
           if (restrictions[r]) addFrozenField(fields, 'name')
+          break
         case 'points':
           if (restrictions[r]) addFrozenField(fields, 'points')
+          break
         case 'due_dates':
           if (restrictions[r]) addFrozenField(fields, 'due_at')
+          break
       }
     })
   }

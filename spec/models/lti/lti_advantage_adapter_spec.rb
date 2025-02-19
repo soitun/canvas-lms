@@ -17,13 +17,11 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 
-require_relative "../../lti_1_3_spec_helper"
-
 describe Lti::LtiAdvantageAdapter do
-  include_context "lti_1_3_spec_helper"
+  include_context "key_storage_helper"
   include Lti::RedisMessageClient
 
-  let!(:lti_user_id) { Lti::Asset.opaque_identifier_for(@student) }
+  let!(:lti_user_id) { Lti::V1p1::Asset.opaque_identifier_for(@student) }
   let(:return_url) { "http://www.platform.com/return_url" }
   let(:user) { @student }
   let(:opts) { { resource_type: "course_navigation", domain: "test.com" } }

@@ -71,7 +71,7 @@ export type CreateEditAssignmentModalProps = {
   assignment: ModalAssignment | undefined
   userIsAdmin: boolean
   onCloseHandler: () => void
-  onSaveHandler: (data: SaveProps) => Promise<void>
+  onSaveHandler: (data: SaveProps, isNewAssignment: boolean) => Promise<void>
   onMoreOptionsHandler: (data: MoreOptionsProps, isNewAssignment: boolean) => void
   timezone: string
   validDueAtRange: any | undefined
@@ -88,6 +88,10 @@ export type CreateEditAssignmentModalProps = {
 type AssignmentTypeIndex = {
   [type: string]: string
 }
+
+const assignmentTypeOptions = ENV.horizon_course
+  ? ['none', 'external_tool', 'not_graded']
+  : ['none', 'discussion_topic', 'online_quiz', 'external_tool', 'not_graded']
 
 const CreateEditAssignmentModal = ({
   assignment,
@@ -114,30 +118,27 @@ const CreateEditAssignmentModal = ({
   )
   const [name, setName] = useState<string>(isEditMode ? assignment.name : '')
   const [dueAt, setDueAt] = useState<string>(isEditMode && assignment.dueAt ? assignment.dueAt : '')
-  const [points, setPoints] = useState<number>(isEditMode ? assignment.points : 0)
+  const [points, setPoints] = useState<string>(isEditMode ? String(assignment.points) : "0")
   const [syncToSIS, setSyncToSIS] = useState<boolean>(shouldSyncGradesToSIS)
 
   const [saveDisabled, setSaveDisabled] = useState<boolean>(false)
 
+  const MAX_POINTS_ALLOWED_FOR_ASSIGNMENT = 999999999
+
   // Modal input refs (only those that can show errors)
-  const fields = ['name', 'due_at']
+  const fields = ['name', 'due_at', 'points']
   const [fieldWithError, setFieldWithError] = useState<string | null>(null)
   const {inputElRefs, setInputElRef} = useInputFocus(fields)
 
   const setNameRef = (el: HTMLInputElement | null) => setInputElRef(el, 'name')
   const setDueAtRef = (el: HTMLInputElement | null) => setInputElRef(el, 'due_at')
+  const setPointsRef = (el: HTMLInputElement | null) => setInputElRef(el, 'points')
 
   // Error Messages for inputs
   const [nameInputMessage, setNameInputMessage] = useState<FormMessage[]>([])
   const [dueDateInputMessage, setDueDateInputMessage] = useState<FormMessage[]>([])
+  const [pointsInputMessage, setPointsInputMessage] = useState<FormMessage[]>([])
 
-  const assignmentTypeOptions = [
-    'none',
-    'discussion_topic',
-    'online_quiz',
-    'external_tool',
-    'not_graded',
-  ]
   const assignmentTypeLabels: AssignmentTypeIndex = {
     none: I18n.t('Assignment'),
     discussion_topic: I18n.t('Discussion'),
@@ -238,11 +239,21 @@ const CreateEditAssignmentModal = ({
     return false
   }
 
-  const validateAssignmentPoints = (value: number) => {
-    if (Number.isNaN(value) || value < 0) {
-      setPoints(0)
+  const validateAssignmentPoints = () => {
+    const pointValue = Number(points)
+    if (pointValue < 0) {
+      setPointsInputMessage([{text: I18n.t('Points must be zero or greater.'), type: 'error'}])
+      return false
+    } else if (pointValue > MAX_POINTS_ALLOWED_FOR_ASSIGNMENT) {
+      setPointsInputMessage([
+        {
+          text: I18n.t('Points cannot exceed %{num}.', {num: MAX_POINTS_ALLOWED_FOR_ASSIGNMENT}),
+          type: 'error',
+        },
+      ])
       return false
     }
+    
     return true
   }
 
@@ -260,11 +271,12 @@ const CreateEditAssignmentModal = ({
     return true
   }
 
-  const setFocusToErrorField = (validName: boolean, validDueAt: boolean) => {
+  const setFocusToErrorField = (validName: boolean, validDueAt: boolean, validPoints: boolean) => {
     let errorField = null
 
     if (!validName) errorField = 'name'
     else if (!validDueAt) errorField = 'due_at'
+    else if (!validPoints) errorField = 'points'
 
     setFieldWithError(errorField)
   }
@@ -275,18 +287,18 @@ const CreateEditAssignmentModal = ({
       setFieldWithError(null)
     }
   }, [fieldWithError, inputElRefs])
-
+  
   const validForm = () => {
     const validType = isEditMode ? true : validateAssignmentType(assignmentType)
     const validName = validateAssignmentName(name)
     const validDueAt = validateAssignmentDueAt(dueAt)
-    const validPoints = validateAssignmentPoints(points)
+    const validPoints = validateAssignmentPoints()
 
     const valid = validType && validName && validDueAt && validPoints && validateForSIS()
 
     // Put focus on inputs with errors if any
     if (!valid) {
-      setFocusToErrorField(validName, validDueAt)
+      setFocusToErrorField(validName, validDueAt, validPoints)
     }
 
     return valid
@@ -318,6 +330,11 @@ const CreateEditAssignmentModal = ({
     }
   }
 
+  const onPointsInputChange = (event: React.SyntheticEvent, value: string) => {
+    setPointsInputMessage([])
+    setPoints(value)
+  }
+
   const onNameInputBlur = (event: React.FocusEvent) => {
     // Don't validate if there is no error message yet
     if (nameInputMessage.length > 0) {
@@ -335,13 +352,12 @@ const CreateEditAssignmentModal = ({
   // More Options
   const onMoreOptions = () => {
     const isNewAssignment = !isEditMode
-
     onMoreOptionsHandler(
       {
         type: assignmentType,
+        points: Number(points),
         name,
         dueAt,
-        points,
         syncToSIS,
       },
       isNewAssignment,
@@ -358,12 +374,12 @@ const CreateEditAssignmentModal = ({
 
     await onSaveHandler({
       type: assignmentType,
+      points: Number(points),
       name,
       dueAt,
-      points,
       syncToSIS,
       publish: false,
-    })
+    }, !isEditMode)
 
     onCloseHandler()
   }
@@ -377,12 +393,12 @@ const CreateEditAssignmentModal = ({
 
     await onSaveHandler({
       type: assignmentType,
+      points: Number(points),
       name,
       dueAt,
-      points,
       syncToSIS,
       publish: true,
-    })
+    }, !isEditMode)
 
     onCloseHandler()
   }
@@ -496,12 +512,13 @@ const CreateEditAssignmentModal = ({
         </View>
         <View as="div">
           <NumberInput
-            allowStringValue={true}
             renderLabel={I18n.t('Points')}
-            interaction={enablePointsInput ? 'enabled' : 'disabled'}
+            inputRef={setPointsRef}
             showArrows={false}
-            value={points}
-            onChange={(event, value) => (value ? setPoints(parseInt(value, 10)) : setPoints(0))}
+            interaction={enablePointsInput ? 'enabled' : 'disabled'}
+            value={points ? points : ''}
+            onChange={onPointsInputChange}
+            messages={pointsInputMessage}
             data-testid="points-input"
           />
         </View>
