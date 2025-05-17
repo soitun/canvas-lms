@@ -31,7 +31,7 @@ import {ModuleHeaderSupplementalInfoStudent} from './ModuleHeaderSupplementalInf
 
 const I18n = createI18nScope('context_modules_v2')
 
-interface ModuleHeaderProps {
+export interface ModuleHeaderStudentProps {
   id: string
   name: string
   expanded: boolean
@@ -41,7 +41,7 @@ interface ModuleHeaderProps {
   requirementCount?: number
 }
 
-const ModuleHeader: React.FC<ModuleHeaderProps> = ({
+const ModuleHeaderStudent: React.FC<ModuleHeaderStudentProps> = ({
   id,
   name,
   expanded,
@@ -65,6 +65,7 @@ const ModuleHeader: React.FC<ModuleHeaderProps> = ({
       <Flex padding="small" justifyItems="space-between" direction="row" wrap="wrap">
         <Flex.Item>
           <IconButton
+            data-testid="module-header-expand-toggle"
             size="small"
             withBorder={false}
             screenReaderLabel={expanded ? I18n.t('Collapse module') : I18n.t('Expand module')}
@@ -103,7 +104,7 @@ const ModuleHeader: React.FC<ModuleHeaderProps> = ({
           </Flex>
         </Flex.Item>
         <Flex.Item margin="0 0 0 medium">
-          {progression && completionRequirements?.length ? (
+          {progression && (completionRequirements?.length || progression.locked) ? (
             <ModuleHeaderStatusIcon progression={progression} />
           ) : null}
         </Flex.Item>
@@ -112,4 +113,4 @@ const ModuleHeader: React.FC<ModuleHeaderProps> = ({
   )
 }
 
-export default ModuleHeader
+export default ModuleHeaderStudent
