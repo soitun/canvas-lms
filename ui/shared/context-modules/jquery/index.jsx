@@ -82,17 +82,23 @@ import ContextModulesHeader from '../react/ContextModulesHeader'
 import doFetchApi from '@canvas/do-fetch-api-effect'
 import {ModuleItemsLazyLoader} from '../utils/ModuleItemsLazyLoader'
 import {
+  moduleFromId,
+  hasAllItemsInTheDOM,
   isModuleCollapsed,
   isModulePaginated,
   addShowAllOrLess,
   maybeExpandAndLoadAll,
+  expandModuleAndLoadAll,
+  loadAll,
   loadFirstPage,
   isModuleCurrentPageEmpty,
+  decrementModuleItemsCount,
   MODULE_EXPAND_AND_LOAD_ALL,
   MODULE_LOAD_ALL,
   MODULE_LOAD_FIRST_PAGE,
 } from '../utils/showAllOrLess'
 import {ModuleItemsStore} from '../utils/ModuleItemsStore'
+import {fetchItemTitles} from '../utils/fetchItemTitles'
 
 if (!('INST' in window)) window.INST = {}
 
@@ -245,14 +251,46 @@ window.modules = (function () {
       )
     },
 
-    updateModuleItemPositions(_event, ui) {
+    async updateModuleItemPositions(_event, ui) {
       const $module = ui.item.parents('.context_module')
       const moduleId = $module.attr('id').substring('context_module_'.length)
       const url = `${ENV.CONTEXT_URL_ROOT}/modules/${moduleId}/reorder`
-      const items = []
-      $module.find('.context_module_items .context_module_item').each(function () {
-        items.push($(this).getTemplateData({textValues: ['id']}).id)
-      })
+      let items = []
+      if (ENV.FEATURE_MODULES_PERF && isModulePaginated($module[0])) {
+        const pageItemsIds = []
+        // the DOM holds just the current page. get their ids
+        $module.find('.context_module_items .context_module_item').each(function () {
+          pageItemsIds.push($(this).getTemplateData({textValues: ['id']}).id)
+        })
+        // now get all the module's item ids
+        try {
+          const allItemsList = await fetchItemTitles(ENV.COURSE_ID, moduleId)
+          const allItemsIds = allItemsList.map(item => item.id)
+          // find the first index of the pageItemsIds
+          const pageItemsIndex = Math.min(
+            ...pageItemsIds.map(id => {
+              const idx = allItemsIds.indexOf(id)
+              return idx === -1 ? Number.MAX_SAFE_INTEGER : idx
+            }),
+          )
+
+          // replace the slice of allItemsIds with pageItemsIds
+          // we know they're contiguous in the array because they're together on the page
+          // length-1 becuase we just added an item to the page so there's 1 more id on the page
+          // than we want to replace in the allItemsIds array
+          allItemsIds.splice(pageItemsIndex, pageItemsIds.length - 1, ...pageItemsIds)
+          items = allItemsIds // \o/
+        } catch (_e) {
+          $module
+            .find('.content')
+            .errorBox(I18n.t('errors.reorder', 'Reorder failed, please try again.'))
+          return
+        }
+      } else {
+        $module.find('.context_module_items .context_module_item').each(function () {
+          items.push($(this).getTemplateData({textValues: ['id']}).id)
+        })
+      }
       $module.find('.context_module_items.ui-sortable').sortable('disable')
       $module.disableWhileLoading(
         $.ajaxJSON(
@@ -598,7 +636,7 @@ window.modules = (function () {
         $before.before($item.show())
       }
       if (ENV.FEATURE_MODULES_PERF && $module[0]?.dataset.moduleId) {
-        maybeExpandAndLoadAll($module[0].dataset.moduleId)
+        maybeExpandAndLoadAll($module[0].dataset.moduleId, true)
       }
       refreshDuplicateLinkStatus($module)
       return $item
@@ -1281,9 +1319,8 @@ modules.initModuleManagement = async function (duplicate) {
         {'content_tag[indent]': indent},
         data => {
           $item.loadingImage('remove')
-          const $module = $('#context_module_' + data.content_tag.context_module_id)
-          modules.addItemToModule($module, data.content_tag)
-          $module.find('.context_module_items.ui-sortable').sortable('refresh')
+          $item.removeClass((_, cls) => (cls.match(/indent_\d+/g) || []).join(' '))
+          $item.addClass('indent_' + data.content_tag.indent)
           modules.updateAssignmentData()
           modules.updateEstimatedDurations()
         },
@@ -1426,12 +1463,18 @@ modules.initModuleManagement = async function (duplicate) {
             modules.updateEstimatedDurations()
             $placeToFocus.focus()
             refreshDuplicateLinkStatus($currentModule)
+
+            const moduleId = $currentModule[0]?.dataset.moduleId
+            if (ENV.FEATURE_MODULES_PERF && moduleId) {
+              decrementModuleItemsCount(moduleId)
+            }
+
             if (
               ENV.FEATURE_MODULES_PERF &&
               isModulePaginated($currentModule[0]) &&
               isModuleCurrentPageEmpty($currentModule[0])
             ) {
-              loadFirstPage($currentModule[0]?.dataset.moduleId)
+              loadFirstPage(moduleId)
             }
           })
           $.flashMessage(
@@ -1482,7 +1525,7 @@ modules.initModuleManagement = async function (duplicate) {
     renderTray(moveTrayProps, document.getElementById('not_right_side'))
   })
 
-  $('.move_module_contents_link').on('click keyclick', function (event) {
+  $('.move_module_contents_link').on('click keyclick', async function (event) {
     event.preventDefault()
 
     const currentModule = $(this).parents('.context_module')[0]
@@ -1490,22 +1533,36 @@ modules.initModuleManagement = async function (duplicate) {
     const groups = Array.prototype.map.call(modules, module => {
       const id = module.getAttribute('id').substring('context_module_'.length)
       const title = module.querySelector('.header > .collapse_module_link > .name').textContent
-      const moduleItems = module.querySelectorAll('.context_module_item')
-      const items = Array.prototype.map.call(moduleItems, item => ({
+      let items = undefined
+      if (hasAllItemsInTheDOM(module)) {
+        const moduleItems = module.querySelectorAll('.context_module_item')
+        items = Array.prototype.map.call(moduleItems, item => ({
+          id: item.getAttribute('id').substring('context_module_item_'.length),
+          title: item.querySelector('.title').textContent.trim(),
+        }))
+      }
+      return {id, title, items}
+    })
+    const moduleId = currentModule.getAttribute('id').substring('context_module_'.length)
+    let items = undefined
+    if (hasAllItemsInTheDOM(currentModule)) {
+      const moduleItems = currentModule.querySelectorAll('.context_module_item')
+      items = Array.prototype.map.call(moduleItems, item => ({
         id: item.getAttribute('id').substring('context_module_item_'.length),
         title: item.querySelector('.title').textContent.trim(),
       }))
-      return {id, title, items}
-    })
-    const moduleItems = currentModule.querySelectorAll('.context_module_item')
-    const items = Array.prototype.map.call(moduleItems, item => ({
-      id: item.getAttribute('id').substring('context_module_item_'.length),
-      title: item.querySelector('.title').textContent.trim(),
-    }))
+    } else {
+      try {
+        items = await fetchItemTitles(ENV.course_id, moduleId)
+      } catch (_error) {
+        return
+      }
+    }
+
     if (items.length === 0) {
       return
     }
-    items[0].groupId = currentModule.getAttribute('id').substring('context_module_'.length)
+    items[0].groupId = moduleId
 
     const moveTrayProps = {
       title: I18n.t('Move Contents Into'),
@@ -1517,18 +1574,36 @@ modules.initModuleManagement = async function (duplicate) {
       },
       formatSaveUrl: ({groupId}) => `${ENV.CONTEXT_URL_ROOT}/modules/${groupId}/reorder`,
       onMoveSuccess: ({data, itemIds, groupId}) => {
-        const $container = $(`#context_module_${groupId} .ui-sortable`)
-        $container.sortable('disable')
+        const targetModule = moduleFromId(groupId)
 
-        itemIds.forEach(id => {
-          const item = document.querySelector(`#context_module_item_${id}`)
-          $container[0].appendChild(item)
-        })
+        if (ENV.FEATURE_MODULES_PERF && targetModule) {
+          if (isModuleCollapsed(targetModule)) {
+            expandModuleAndLoadAll(groupId)
+          } else {
+            loadAll(groupId)
+          }
+        } else {
+          const $container = $(`#context_module_${groupId} .ui-sortable`)
+          $container.sortable('disable')
 
-        const order = data.context_module.content_tags.map(item => item.content_tag.id)
-        reorderElements(order, $container[0], id => `#context_module_item_${id}`)
+          itemIds.forEach(id => {
+            const item = document.querySelector(`#context_module_item_${id}`)
+            $container[0].appendChild(item)
+          })
 
-        $container.sortable('enable').sortable('refresh')
+          const order = data.context_module.content_tags.map(item => item.content_tag.id)
+          reorderElements(order, $container[0], id => `#context_module_item_${id}`)
+
+          $container.sortable('enable').sortable('refresh')
+        }
+
+        if (ENV.FEATURE_MODULES_PERF && currentModule) {
+          if (!isModuleCollapsed(currentModule)) {
+            // this gets rid of the paginator and show all button
+            const ll = new ModuleItemsLazyLoader(ENV.course_id, () => {}, new ModuleItemsStore())
+            ll.renderResult(currentModule.dataset.moduleId, '')
+          }
+        }
       },
       focusOnExit: () => currentModule.querySelector('.al-trigger'),
     }
@@ -1622,30 +1697,37 @@ modules.initModuleManagement = async function (duplicate) {
       }
 
       const $module = $('#context_module_' + id)
-      let nextPosition = modules.getNextPosition($module)
-      item_data.content_details = ['items']
-      item_data['item[position]'] = nextPosition++
-      let $item = modules.addItemToModule($module, item_data)
+      let $item
+      if (!ENV.FEATURE_MODULES_PERF) {
+        let nextPosition = modules.getNextPosition($module)
+        item_data.content_details = ['items']
+        item_data['item[position]'] = nextPosition++
+        $item = modules.addItemToModule($module, item_data)
+      }
       $module.find('.context_module_items.ui-sortable').sortable('refresh').sortable('disable')
       const url = $module.find('.add_module_item_link').attr('rel')
       $module.disableWhileLoading(
         $.ajaxJSON(url, 'POST', item_data, data => {
-          $item.remove()
-          data.content_tag.type = item_data['item[type]']
-          $item = modules.addItemToModule($module, data.content_tag)
-          modules.addContentTagToEnv(data.content_tag)
-          $module.find('.context_module_items.ui-sortable').sortable('enable').sortable('refresh')
-          initNewItemPublishButton($item, data.content_tag)
-          initNewItemDirectShare($item, data.content_tag)
-          modules.updateAssignmentData()
-          modules.updateEstimatedDurations()
+          if (ENV.FEATURE_MODULES_PERF) {
+            maybeExpandAndLoadAll(id, true)
+          } else {
+            $item?.remove()
+            data.content_tag.type = item_data['item[type]']
+            $item = modules.addItemToModule($module, data.content_tag)
+            modules.addContentTagToEnv(data.content_tag)
+            $module.find('.context_module_items.ui-sortable').sortable('enable').sortable('refresh')
+            initNewItemPublishButton($item, data.content_tag)
+            initNewItemDirectShare($item, data.content_tag)
+            modules.updateAssignmentData()
+            modules.updateEstimatedDurations()
 
-          $item.find('.lock-icon').data({
-            moduleType: data.content_tag.type,
-            contentId: data.content_tag.content_id,
-            moduleItemId: data.content_tag.id,
-          })
-          modules.loadMasterCourseData(data.content_tag.id)
+            $item.find('.lock-icon').data({
+              moduleType: data.content_tag.type,
+              contentId: data.content_tag.content_id,
+              moduleItemId: data.content_tag.id,
+            })
+            modules.loadMasterCourseData(data.content_tag.id)
+          }
         }),
         {
           onComplete() {
@@ -1671,27 +1753,32 @@ modules.initModuleManagement = async function (duplicate) {
     axios
       .post(url)
       .then(({data}) => {
-        const $item = modules.addItemToModule($module, data.content_tag)
-        initNewItemPublishButton($item, data.content_tag)
-        initNewItemDirectShare($item, data.content_tag)
-        modules.updateAssignmentData()
-        modules.updateEstimatedDurations()
+        if (ENV.FEATURE_MODULES_PERF) {
+          maybeExpandAndLoadAll($module.data('moduleId'))
+        } else {
+          const $item = modules.addItemToModule($module, data.content_tag)
+          initNewItemPublishButton($item, data.content_tag)
+          initNewItemDirectShare($item, data.content_tag)
 
-        $item.find('.lock-icon').data({
-          moduleType: data.content_tag.type,
-          contentId: data.content_tag.content_id,
-          moduleItemId: data.content_tag.id,
-        })
-        modules.loadMasterCourseData(data.content_tag.id)
+          modules.updateAssignmentData()
+          modules.updateEstimatedDurations()
 
-        $module.find('.context_module_items.ui-sortable').sortable('disable')
-        data.new_positions.forEach(({content_tag}) => {
-          $module.find(`#context_module_item_${content_tag.id}`).fillTemplateData({
-            data: {position: content_tag.position},
+          $item.find('.lock-icon').data({
+            moduleType: data.content_tag.type,
+            contentId: data.content_tag.content_id,
+            moduleItemId: data.content_tag.id,
           })
-        })
-        $(`#context_module_item_${data.content_tag.id} .item_link`).focus()
-        $module.find('.context_module_items.ui-sortable').sortable('enable').sortable('refresh')
+          modules.loadMasterCourseData(data.content_tag.id)
+
+          $module.find('.context_module_items.ui-sortable').sortable('disable')
+          data.new_positions.forEach(({content_tag}) => {
+            $module.find(`#context_module_item_${content_tag.id}`).fillTemplateData({
+              data: {position: content_tag.position},
+            })
+          })
+          $(`#context_module_item_${data.content_tag.id} .item_link`).focus()
+          $module.find('.context_module_items.ui-sortable').sortable('enable').sortable('refresh')
+        }
       })
       .catch(showFlashError('Error duplicating item'))
   })
@@ -2024,7 +2111,7 @@ function initContextModuleItems(moduleId) {
       const id = module.getAttribute('id').substring('context_module_'.length)
       const title = module.querySelector('.header > .collapse_module_link > .name').textContent
       if (ENV.FEATURE_MODULES_PERF && (isModuleCollapsed(module) || isModulePaginated(module))) {
-        return {id, title, items: false}
+        return {id, title, items: undefined}
       }
       const moduleItems = module.querySelectorAll('.context_module_item')
       const items = Array.from(moduleItems).map(item => ({
@@ -2062,37 +2149,18 @@ function initContextModuleItems(moduleId) {
           item.remove()
         }
         if (ENV.FEATURE_MODULES_PERF) {
-          maybeExpandAndLoadAll(groupId)
+          maybeExpandAndLoadAll(groupId, true)
         }
       },
       focusOnExit: () => currentItem.querySelector('.al-trigger'),
     }
 
-    fetchModuleItemsAndRenderTray(moveTrayProps, document.getElementById('not_right_side'))
+    renderTray(moveTrayProps, document.getElementById('not_right_side'))
   })
 
   if (ENV.FEATURE_MODULES_PERF) {
     addShowAllOrLess(moduleId)
   }
-}
-
-async function fetchModuleItemsAndRenderTray(moveTrayProps, rootContainer) {
-  const missing_groups = moveTrayProps.moveOptions.groups.filter(group => {
-    return group.items === false
-  })
-
-  const promises = missing_groups.map(async group => {
-    return fetch(
-      `/api/v1/courses/${ENV.COURSE_ID}/modules/${group.id}/items?include[]=title_only&per_page=1000`,
-    )
-      .then(res => res.json())
-      .then(items => {
-        group.items = items.map(item => ({id: String(item.id), title: item.title}))
-      })
-  })
-
-  await Promise.all(promises)
-  renderTray(moveTrayProps, rootContainer)
 }
 
 // TODO: call this on the current page when getting a new page of items
@@ -2511,21 +2579,21 @@ function initContextModules() {
     renderSendToTray(true, selection, returnFocusTo)
   })
 
-  $(document).on('click', '.assign_module_link, .view_assign_link', function (event) {
+  $(document).on('click', '.assign_module_link, .view_assign_link', async function (event) {
     event.preventDefault()
     const returnFocusTo = $(event.target).closest('ul').prev('.al-trigger')
     const moduleElement = $(event.target).parents('.context_module')[0]
-    const settingsProps = parseModule(moduleElement)
+    const settingsProps = await parseModule(moduleElement)
     renderDifferentiatedModulesTray(returnFocusTo, moduleElement, settingsProps, {
       initialTab: 'assign-to',
     })
   })
 
-  $(document).on('click', '.edit_module_link', function (event) {
+  $(document).on('click', '.edit_module_link', async function (event) {
     event.preventDefault()
     const returnFocusTo = $(event.target).closest('ul').prev('.al-trigger')
     const moduleElement = $(event.target).parents('.context_module')[0]
-    const settingsProps = parseModule(moduleElement)
+    const settingsProps = await parseModule(moduleElement)
     renderDifferentiatedModulesTray(returnFocusTo, moduleElement, settingsProps, {
       initialTab: 'settings',
     })
@@ -2656,7 +2724,7 @@ $(() => {
       const moduleId = event.detail.moduleId
       document
         .querySelector(`#context_module_content_${moduleId} ul.context_module_items`)
-        ?.remove()
+        ?.replaceChildren()
       modules.lazyLoadItems([moduleId], true)
     })
     document.addEventListener(MODULE_LOAD_FIRST_PAGE, event => {
@@ -2667,7 +2735,7 @@ $(() => {
       const moduleId = event.detail.moduleId
       document
         .querySelector(`#context_module_content_${moduleId} ul.context_module_items`)
-        ?.remove()
+        ?.replaceChildren()
       modules.lazyLoadItems([moduleId], false)
     })
   } else {

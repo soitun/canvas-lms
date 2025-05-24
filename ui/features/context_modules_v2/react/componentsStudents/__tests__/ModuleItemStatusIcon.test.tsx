@@ -23,28 +23,31 @@ import {CompletionRequirement, ModuleItemContent, ModuleRequirement} from '../..
 
 interface TestPropsOverrides {
   itemId?: string
+  moduleCompleted?: boolean
   completionRequirement?: Partial<CompletionRequirement>
   requirementsMet?: ModuleRequirement[]
   content?: Partial<ModuleItemContent>
-  // For controlling the due date
-  dueDateOffsetHours?: number // Positive for future, negative for past
+  dueDateOffsetHours?: number
   isCompleted?: boolean
 }
 
 const buildDefaultProps = (overrides: TestPropsOverrides = {}) => {
   const itemId = overrides.itemId ?? 'item-1'
 
-  // Create default completion requirement
-  const defaultCompletionRequirement: CompletionRequirement = {
-    id: itemId,
-    type: 'assignment',
-    minScore: 100,
-    minPercentage: 100,
-    ...overrides.completionRequirement,
+  // Create default completion requirement if not explicitly undefined
+  let defaultCompletionRequirement = undefined
+  if (!('completionRequirement' in overrides && overrides.completionRequirement === undefined)) {
+    defaultCompletionRequirement = {
+      id: itemId,
+      type: 'assignment',
+      minScore: 100,
+      minPercentage: 100,
+      ...overrides.completionRequirement,
+    }
   }
 
   // Set up due date
-  const dueDateOffsetHours = overrides.dueDateOffsetHours ?? 72 // 3 days in the future by default
+  const dueDateOffsetHours = overrides.dueDateOffsetHours ?? 72
   const dueDate = new Date(Date.now() + dueDateOffsetHours * 60 * 60 * 1000)
 
   // Create default content
@@ -56,6 +59,7 @@ const buildDefaultProps = (overrides: TestPropsOverrides = {}) => {
         {
           _id: `submission-${itemId}`,
           cachedDueDate: dueDate.toISOString(),
+          missing: overrides.dueDateOffsetHours && overrides.dueDateOffsetHours < 0 ? true : false,
         },
       ],
     },
@@ -77,18 +81,21 @@ const buildDefaultProps = (overrides: TestPropsOverrides = {}) => {
 
   return {
     itemId,
-    completionRequirement: defaultCompletionRequirement,
+    moduleCompleted: overrides?.moduleCompleted ?? false,
+    completionRequirements: defaultCompletionRequirement ? [defaultCompletionRequirement] : [],
     requirementsMet: overrides.requirementsMet ?? defaultRequirementsMet,
     content: defaultContent,
   }
 }
 
 const setUp = (overrides: TestPropsOverrides = {}) => {
-  const {itemId, completionRequirement, requirementsMet, content} = buildDefaultProps(overrides)
+  const {itemId, moduleCompleted, completionRequirements, requirementsMet, content} =
+    buildDefaultProps(overrides)
   return render(
     <ModuleItemStatusIcon
       itemId={itemId}
-      completionRequirement={completionRequirement}
+      moduleCompleted={moduleCompleted}
+      completionRequirements={completionRequirements}
       requirementsMet={requirementsMet}
       content={content}
     />,
@@ -96,44 +103,117 @@ const setUp = (overrides: TestPropsOverrides = {}) => {
 }
 
 describe('ModuleItemStatusIcon', () => {
-  it('should render "Complete"', () => {
+  it('should render "Complete" when requirements are met and completionRequirement exists', () => {
     const container = setUp({
       itemId: '1',
       isCompleted: true,
-      dueDateOffsetHours: 72, // Due in the future
+      dueDateOffsetHours: 72,
     })
     expect(container.container).toBeInTheDocument()
     expect(container.getByText('Complete')).toBeInTheDocument()
   })
 
-  it('should render "Overdue"', () => {
-    const container = setUp({
-      itemId: '1',
-      isCompleted: false,
-      dueDateOffsetHours: -72, // Due in the past (72 hours ago)
-    })
-    expect(container.container).toBeInTheDocument()
-    expect(container.getByText('Overdue')).toBeInTheDocument()
-  })
-
-  it('should render "Assigned"', () => {
-    const container = setUp({
-      itemId: '1',
-      isCompleted: false,
-      dueDateOffsetHours: 72, // Due in the future
-    })
-    expect(container.container).toBeInTheDocument()
-    expect(container.getByText('Assigned')).toBeInTheDocument()
-  })
-
-  it('should render nothing when requirements are not met', () => {
+  it('should render "Missing" when submission is marked as missing', () => {
     const container = setUp({
       itemId: '1',
       isCompleted: false,
       content: {
         submissionsConnection: {
+          nodes: [
+            {
+              _id: 'submission-1',
+              missing: true,
+            },
+          ],
+        },
+      },
+    })
+    expect(container.container).toBeInTheDocument()
+    expect(container.getByText('Missing')).toBeInTheDocument()
+  })
+
+  it('should render assigned icon when completionRequirement exists but not completed', () => {
+    const container = setUp({
+      itemId: '1',
+      isCompleted: false,
+      dueDateOffsetHours: 72,
+    })
+    expect(container.container).toBeInTheDocument()
+    expect(container.getByTestId('assigned-icon')).toBeInTheDocument()
+  })
+
+  it('should not render assigned icon when module is completed', () => {
+    const container = setUp({
+      itemId: '1',
+      moduleCompleted: true,
+      dueDateOffsetHours: 72,
+    })
+    expect(container.container).toBeInTheDocument()
+    expect(container.queryByTestId('assigned-icon')).toBeNull()
+  })
+
+  it('should prioritize "Missing" over "Complete" status', () => {
+    const container = setUp({
+      itemId: '1',
+      isCompleted: true,
+      content: {
+        submissionsConnection: {
+          nodes: [
+            {
+              _id: 'submission-1',
+              missing: true,
+            },
+          ],
+        },
+      },
+    })
+    expect(container.container).toBeInTheDocument()
+    expect(container.getByText('Missing')).toBeInTheDocument()
+    expect(container.queryByText('Complete')).not.toBeInTheDocument()
+  })
+
+  it('should not render "Missing" when module is completed', () => {
+    const container = setUp({
+      itemId: '1',
+      moduleCompleted: true,
+      isCompleted: false,
+      content: {
+        submissionsConnection: {
+          nodes: [
+            {
+              _id: 'submission-1',
+              missing: true,
+            },
+          ],
+        },
+      },
+    })
+    expect(container.container).toBeInTheDocument()
+    expect(container.queryByText('Missing')).not.toBeInTheDocument()
+  })
+
+  it('should render nothing when no completionRequirement and submissions array is empty', () => {
+    const container = setUp({
+      itemId: '1',
+      isCompleted: false,
+      completionRequirement: undefined,
+      content: {
+        submissionsConnection: {
           nodes: [],
         },
+      },
+    })
+    expect(container.container).toBeInTheDocument()
+    expect(container.container).toBeEmptyDOMElement()
+  })
+
+  it('should render nothing when both completionRequirement and submissions are undefined', () => {
+    const container = setUp({
+      itemId: '1',
+      isCompleted: false,
+      completionRequirement: undefined,
+      content: {
+        submissionsConnection: undefined,
       },
     })
     expect(container.container).toBeInTheDocument()

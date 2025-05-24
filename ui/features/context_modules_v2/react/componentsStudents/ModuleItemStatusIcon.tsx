@@ -23,34 +23,47 @@ import {View} from '@instructure/ui-view'
 import {Text} from '@instructure/ui-text'
 import {useScope as createI18nScope} from '@canvas/i18n'
 import {CompletionRequirement, ModuleItemContent, ModuleRequirement} from '../utils/types'
+import {IconShapeOvalLine} from '@instructure/ui-icons'
 
 const I18n = createI18nScope('context_modules_v2')
 
 export interface ModuleItemStatusIconProps {
   itemId: string
-  completionRequirement?: CompletionRequirement
+  moduleCompleted: boolean
+  completionRequirements?: CompletionRequirement[]
   requirementsMet?: ModuleRequirement[]
   content?: ModuleItemContent
 }
 
 const ModuleItemStatusIcon: React.FC<ModuleItemStatusIconProps> = ({
   itemId,
-  completionRequirement,
+  moduleCompleted,
+  completionRequirements,
   requirementsMet = [],
   content,
 }) => {
-  const isPastDue = useMemo(() => {
+  const completionRequirement = useMemo(
+    () => completionRequirements?.find(req => req.id === itemId),
+    [completionRequirements, itemId],
+  )
+  const hasCompletionRequirements = !!completionRequirements?.length
+
+  const isMissing = useMemo(() => {
     if (!content) return false
 
-    const dueDate = content.submissionsConnection?.nodes?.[0]?.cachedDueDate
-    if (!dueDate) return false
-
-    const now = new Date()
-    const dueDateObj = new Date(dueDate)
-    return now > dueDateObj
+    return !!content?.submissionsConnection?.nodes?.[0]?.missing
   }, [content])
 
-  const isCompleted = requirementsMet.some(req => req.id.toString() === itemId.toString())
+  const isCompleted = useMemo(
+    () =>
+      requirementsMet.some(req => req.id.toString() === itemId.toString()) && completionRequirement,
+    [requirementsMet, itemId, completionRequirement],
+  )
+
+  const isSubmissionEmpty = useMemo(
+    () => !!content?.submissionsConnection?.nodes?.length,
+    [content],
+  )
 
   const StatusPill = ({
     color,
@@ -69,18 +82,18 @@ const ModuleItemStatusIcon: React.FC<ModuleItemStatusIconProps> = ({
   )
 
   const renderPill = useMemo(() => {
-    if (isCompleted) {
+    if (isMissing && (!moduleCompleted || !hasCompletionRequirements)) {
+      return <StatusPill color="danger" text={I18n.t('Missing')} />
+    } else if (isCompleted) {
       return <StatusPill color="success" text={I18n.t('Complete')} />
-    } else if (isPastDue) {
-      return <StatusPill color="danger" text={I18n.t('Overdue')} />
-    } else if (content?.submissionsConnection?.nodes?.length) {
-      return <StatusPill color="info" text={I18n.t('Assigned')} />
+    } else if (completionRequirement && !moduleCompleted) {
+      return <IconShapeOvalLine data-testid="assigned-icon" />
     } else {
       return null
     }
-  }, [isCompleted, isPastDue, content])
+  }, [isCompleted, isMissing, completionRequirement, moduleCompleted, hasCompletionRequirements])
 
-  return renderPill && completionRequirement ? (
+  return renderPill && (completionRequirement || isSubmissionEmpty) ? (
     <View as="div" margin="0 0 0 small">
       {renderPill}
     </View>

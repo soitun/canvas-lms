@@ -226,6 +226,7 @@ class AbstractAssignment < ActiveRecord::Base
     validate :final_grader_ok?
   end
 
+  accepts_nested_attributes_for :estimated_duration, allow_destroy: true
   accepts_nested_attributes_for :external_tool_tag, update_only: true, reject_if: proc { |attrs|
     # only accept the url, link_settings, content_type, content_id and new_tab params
     # the other accessible params don't apply to an content tag being used as an external_tool_tag
@@ -1185,11 +1186,18 @@ class AbstractAssignment < ActiveRecord::Base
   def ensure_assignment_group(do_save = true)
     return if assignment_group_id
 
+    return if skip_assignment_group_for_wiki_page?
+
     context.require_assignment_group
     self.assignment_group = context.assignment_groups.active.first
     if do_save
       GuardRail.activate(:primary) { save! }
     end
+  end
+
+  def skip_assignment_group_for_wiki_page?
+    Account.site_admin.feature_enabled?(:wiki_page_mastery_path_no_assignment_group) &&
+      submission_types == "wiki_page" && context.conditional_release?
   end
 
   def attendance?

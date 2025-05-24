@@ -49,6 +49,7 @@ export type ModuleItemContent = {
     nodes: Array<{
       _id: string
       cachedDueDate?: string
+      missing?: boolean
     }>
   }
   url?: string
@@ -64,6 +65,7 @@ export type ModuleItemContent = {
   newTab?: boolean
   fileState?: string
   locked?: boolean
+  graded?: boolean
   assignmentOverrides?: AssignmentOverrideGraphQLResult
 } | null
 
@@ -136,6 +138,11 @@ export interface Prerequisite {
   name: string
 }
 
+export interface ModuleStatistics {
+  latestDueAt: string | null
+  missingAssignmentCount: number
+}
+
 export interface Module {
   id: string
   _id: string
@@ -149,6 +156,8 @@ export interface Module {
   unlockAt: string | null
   moduleItems: ModuleItem[]
   progression?: ModuleProgression
+  hasActiveOverrides: boolean
+  submissionStatistics?: ModuleStatistics
 }
 
 export interface ModulesResponse {
@@ -160,9 +169,26 @@ export interface ModulesResponse {
   }
 }
 
-interface GraphQLResult {
+interface CoursesubmissionStatistics {
+  submissionsDueThisWeekCount: number
+  missingSubmissionsCount: number
+}
+
+interface CourseStudentResponse {
+  name?: string
+  submissionStatistics?: CoursesubmissionStatistics
+}
+
+interface CourseStudentGraphQLResult {
   legacyNode?: {
     name?: string
+    submissionStatistics?: CoursesubmissionStatistics
+  }
+  errors?: {message: string}[]
+}
+
+interface GraphQLResult {
+  legacyNode?: {
     modulesConnection?: {
       edges: Array<{
         cursor: string
@@ -199,6 +225,7 @@ export interface ModuleItem {
   _id: string
   url: string
   indent: number
+  position: number
   content: ModuleItemContent
 }
 

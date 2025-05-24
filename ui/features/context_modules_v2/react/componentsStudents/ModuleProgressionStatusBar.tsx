@@ -27,11 +27,13 @@ import {ProgressBar} from '@instructure/ui-progress'
 const I18n = createI18nScope('context_modules_v2')
 
 interface ModuleProgressionStatusBarProps {
+  requirementCount?: number
   completionRequirements: CompletionRequirement[]
   progression?: ModuleProgression
 }
 
 const ModuleProgressionStatusBar: React.FC<ModuleProgressionStatusBarProps> = ({
+  requirementCount,
   completionRequirements,
   progression,
 }) => {
@@ -40,12 +42,12 @@ const ModuleProgressionStatusBar: React.FC<ModuleProgressionStatusBarProps> = ({
   }
 
   const completedCount = progression.requirementsMet?.length || 0
-  const totalCount = completionRequirements.length
+  const totalCount = requirementCount ? 1 : completionRequirements?.length
 
   const completionPercentage = Math.round((completedCount / totalCount) * 100)
-  const isComplete = completionPercentage === 100
+  const isComplete = completionPercentage >= 100
   const completionText = I18n.t('%{completed}/%{total} Required Items Completed', {
-    completed: completedCount,
+    completed: completedCount > totalCount ? totalCount : completedCount,
     total: totalCount,
   })
 
@@ -53,18 +55,28 @@ const ModuleProgressionStatusBar: React.FC<ModuleProgressionStatusBarProps> = ({
     <View as="div" margin="xx-small 0 0 0">
       <Flex direction="column">
         <Flex.Item overflowY="hidden">
-          <ProgressBar
-            screenReaderLabel={completionText}
-            valueNow={completionPercentage}
-            valueMax={100}
-            size="small"
-            meterColor={isComplete ? 'success' : 'brand'}
-            height="0.5rem"
+          <View
+            as="div"
             width="70%"
-            themeOverride={{
-              borderRadius: 'small',
-            }}
-          />
+            overflowX="hidden"
+            overflowY="hidden"
+            borderRadius="large"
+            borderColor={isComplete ? 'success' : 'brand'}
+            borderWidth="small"
+          >
+            <ProgressBar
+              screenReaderLabel={completionText}
+              valueNow={completionPercentage}
+              valueMax={100}
+              size="small"
+              meterColor={isComplete ? 'success' : 'brand'}
+              height="0.5rem"
+              width="100%"
+              themeOverride={{
+                borderRadius: 'small',
+              }}
+            />
+          </View>
         </Flex.Item>
         <Flex.Item>
           <Text size="x-small" weight="normal">

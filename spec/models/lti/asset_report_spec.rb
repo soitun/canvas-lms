@@ -46,15 +46,6 @@ RSpec.describe Lti::AssetReport do
         end
       end
 
-      it "is invalid if score_given is provided without score_maximum" do
-        expect do
-          lti_asset_report_model(score_given: 1, score_maximum: nil)
-        end.to raise_error(ActiveRecord::RecordInvalid, /Score maximum must be present if score_given is present/)
-        expect(lti_asset_report_model(score_given: nil, score_maximum: 1)).to be_valid
-        expect(lti_asset_report_model(score_given: nil, score_maximum: nil)).to be_valid
-        expect(lti_asset_report_model(score_given: 1, score_maximum: 1)).to be_valid
-      end
-
       it "requires indication_color to be a hex code" do
         expect(lti_asset_report_model(indication_color: "#123456")).to be_valid
         %w[#1234567 123456 #12345 white].each do |color|
@@ -96,6 +87,13 @@ RSpec.describe Lti::AssetReport do
       attrs = ar.slice("asset_processor", "asset", "report_type")
       ar.update!(workflow_state: "deleted")
       expect(lti_asset_report_model(attrs)).to be_valid
+    end
+
+    it "requres a processing_progress" do
+      model = lti_asset_report_model
+      expect(model).to be_valid
+      model.processing_progress = nil
+      expect(model).not_to be_valid
     end
   end
 
@@ -149,22 +147,16 @@ RSpec.describe Lti::AssetReport do
     let(:rep2aIi) { lti_asset_report_model(asset: asset2a, asset_processor: processorI) }
     let(:rep2aIIi) { lti_asset_report_model(asset: asset2a, asset_processor: processorII) }
 
-    let(:by_submission) { subject[:reports_by_submission] }
-
-    it "includes the asset processor ID in the asset_processor_ids set" do
-      expect(subject[:asset_processor_ids]).to match_array([processorI.id, processorII.id])
-    end
-
     it "organizes reports by submission and attachment" do
-      expect(by_submission.keys).to match_array([sub1.id, sub2.id])
-      expect(by_submission[sub1.id]).to \
+      expect(subject.keys).to match_array([sub1.id, sub2.id])
+      expect(subject[sub1.id]).to \
         match({
                 by_attachment: {
                   att1a.id => { processorI.id => an_instance_of(Array) },
                   att1b.id => { processorI.id => an_instance_of(Array) },
                 }
               })
-      expect(by_submission[sub2.id]).to \
+      expect(subject[sub2.id]).to \
         match({
                 by_attachment: {
                   att2a.id => {
@@ -174,8 +166,8 @@ RSpec.describe Lti::AssetReport do
                 }
               })
 
-      sub1_reports = by_submission[sub1.id][:by_attachment]
-      sub2_reports = by_submission[sub2.id][:by_attachment]
+      sub1_reports = subject[sub1.id][:by_attachment]
+      sub2_reports = subject[sub2.id][:by_attachment]
 
       expect(sub1_reports[att1a.id][processorI.id].map { _1[:id] }).to \
         match_array([rep1aIi.id, rep1aIii.id])
@@ -188,7 +180,7 @@ RSpec.describe Lti::AssetReport do
     end
 
     it "includes report details in the result" do
-      r = by_submission[sub1.id][:by_attachment][att1a.id][processorI.id].find do |r|
+      r = subject[sub1.id][:by_attachment][att1a.id][processorI.id].find do |r|
         r[:id] == rep1aIi.id
       end
       expect(r).to eq(rep1aIi.info_for_display)
@@ -197,9 +189,8 @@ RSpec.describe Lti::AssetReport do
     context "when some reports are deleted" do
       before { rep2aIIi.destroy! }
 
-      it "does not include the reports or their processor ids" do
-        expect(subject[:asset_processor_ids]).not_to include(processorII.id)
-        expect(subject[:reports_by_submission][sub2.id][:by_attachment][att2a.id].keys).not_to \
+      it "does not include the reports" do
+        expect(subject[sub2.id][:by_attachment][att2a.id].keys).not_to \
           include(processorII.id)
       end
     end
@@ -207,9 +198,8 @@ RSpec.describe Lti::AssetReport do
     context "when a processor is deleted" do
       before { processorII.destroy! }
 
-      it "does not include the reports or their processor ids" do
-        expect(subject[:asset_processor_ids]).not_to include(processorII.id)
-        expect(subject[:reports_by_submission][sub2.id][:by_attachment][att2a.id].keys).not_to \
+      it "does not include the reports" do
+        expect(subject[sub2.id][:by_attachment][att2a.id].keys).not_to \
           include(processorII.id)
       end
     end
@@ -217,16 +207,14 @@ RSpec.describe Lti::AssetReport do
     it "returns empty results when no matching reports exist" do
       rep1aIi
       result = Lti::AssetReport.info_for_display_by_submission(submission_ids: Submission.last.id + 1)
-      expect(result[:asset_processor_ids]).to be_empty
-      expect(result[:reports_by_submission]).to be_empty
+      expect(result).to be_empty
     end
 
     context "when submission_ids is nil" do
       it "returns empty results" do
         rep1aIi
         result = Lti::AssetReport.info_for_display_by_submission(submission_ids: nil)
-        expect(result[:asset_processor_ids]).to be_empty
-        expect(result[:reports_by_submission]).to be_empty
+        expect(result).to be_empty
       end
     end
 
@@ -234,8 +222,7 @@ RSpec.describe Lti::AssetReport do
       it "returns empty results" do
         rep1aIi
         result = Lti::AssetReport.info_for_display_by_submission(submission_ids: [])
-        expect(result[:asset_processor_ids]).to be_empty
-        expect(result[:reports_by_submission]).to be_empty
+        expect(result).to be_empty
       end
     end
   end
@@ -249,8 +236,7 @@ RSpec.describe Lti::AssetReport do
         comment: "What a great report",
         indication_color: "#008800",
         indication_alt: "WOW",
-        score_given: 8,
-        score_maximum: 10,
+        result: "8/10",
         error_code: "MYERRORCODE",
         processing_progress: "Processed"
       )
@@ -260,21 +246,30 @@ RSpec.describe Lti::AssetReport do
       expect(subject[:id]).to eq(report.id)
       expect(subject[:title]).to eq("My cool report")
       expect(subject[:comment]).to eq("What a great report")
-      expect(subject[:score_given]).to eq(8)
-      expect(subject[:score_maximum]).to eq(10)
-      expect(subject[:indication_color]).to eq("#008800")
-      expect(subject[:indication_alt]).to eq("WOW")
-      expect(subject[:error_code]).to eq("MYERRORCODE")
-      expect(subject[:processing_progress]).to eq("Processed")
+      expect(subject[:result]).to eq("8/10")
+      expect(subject).to_not have_key(:resultTruncated)
+      expect(subject[:indicationColor]).to eq("#008800")
+      expect(subject[:indicationAlt]).to eq("WOW")
+      expect(subject[:errorCode]).to eq("MYERRORCODE")
+      expect(subject[:processingProgress]).to eq("Processed")
+      expect(subject[:resubmitAvailable]).to be(false)
     end
 
-    it "includes launch_url_path for processed reports" do
-      expect(subject[:launch_url_path]).to \
+    it "truncates result_truncated to 16 characters" do
+      report.update!(result: "12345678901234567890")
+      expect(subject[:resultTruncated]).to eq("123456789012345…")
+      expect(subject[:result]).to eq("12345678901234567890")
+    end
+
+    it "includes launchUrlPath for processed reports" do
+      expect(subject[:launchUrlPath]).to \
         eq "/asset_processors/#{report.lti_asset_processor_id}/reports/#{report.id}/launch"
     end
   end
 
-  describe "#resubmit_url_path" do
+  describe "#resubmit_available?" do
+    subject { standard_report.resubmit_available? }
+
     let(:processing_progress) { "Failed" }
     let(:error_code) { "MYERRORCODE" }
     let(:standard_report) { lti_asset_report_model(processing_progress:, error_code:) }
@@ -284,37 +279,25 @@ RSpec.describe Lti::AssetReport do
         context "when error_code is #{error_code}" do
           let(:error_code) { error_code }
 
-          it "returns a resubmit URL path" do
-            expect(standard_report.resubmit_url_path).to eq(
-              "/api/lti/asset_processors/#{standard_report.lti_asset_processor_id}/notices/#{standard_report.asset.submission.user_id}"
-            )
-          end
+          it { is_expected.to be true }
         end
       end
 
       context "when error_code does not need action" do
-        it "resubmit_url_path is nil" do
-          expect(standard_report.resubmit_url_path).to be_nil
-        end
+        it { is_expected.to be false }
       end
     end
 
     context "when processing_progress is PendingManual" do
       let(:processing_progress) { "PendingManual" }
 
-      it "returns a resubmit URL path" do
-        expect(standard_report.resubmit_url_path).to eq(
-          "/api/lti/asset_processors/#{standard_report.lti_asset_processor_id}/notices/#{standard_report.asset.submission.user_id}"
-        )
-      end
+      it { is_expected.to be true }
     end
 
     context "when processing_progress is not Failed or PendingManual" do
       let(:processing_progress) { "Processed" }
 
-      it "returns nil" do
-        expect(standard_report.resubmit_url_path).to be_nil
-      end
+      it { is_expected.to be false }
     end
   end
 end

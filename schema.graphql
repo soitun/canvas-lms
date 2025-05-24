@@ -412,6 +412,7 @@ type Assignment implements LegacyIDInterface & ModuleItemInterface & Node & Time
   If this is a group assignment, boolean flag indicating whether or not students will be graded individually.
   """
   gradeGroupStudentsIndividually: Boolean
+  graded: Boolean
 
   """
   If true, the assignment has at least one graded submission
@@ -1391,8 +1392,14 @@ type CommunicationChannel implements LegacyIDInterface & Node & Timestamped {
   _id: ID!
   createdAt: DateTime
   id: ID!
-  notificationPolicies(contextType: NotificationPreferencesContextType): [NotificationPolicy!]
-  notificationPolicyOverrides(accountId: ID, contextType: NotificationPreferencesContextType!, courseId: ID): [NotificationPolicy!]
+  notificationPolicies(
+    contextType: NotificationPreferencesContextType
+  ): [NotificationPolicy!]
+  notificationPolicyOverrides(
+    accountId: ID
+    contextType: NotificationPreferencesContextType!
+    courseId: ID
+  ): [NotificationPolicy!]
   path: String
   pathType: String
   updatedAt: DateTime
@@ -2135,6 +2142,11 @@ type Course implements AssetString & AssignmentsConnectionInterface & Discussion
   state: CourseWorkflowState!
 
   """
+  Returns submission-related statistics for the current user
+  """
+  submissionStatistics: SubmissionStatistics
+
+  """
   all the submissions for assignments in this course
   """
   submissionsConnection(
@@ -2198,6 +2210,17 @@ type Course implements AssetString & AssignmentsConnectionInterface & Discussion
     """
     userIds: [ID!]
   ): UserConnection
+  usersConnectionCount(
+    filter: CourseUsersFilter
+    sort: CourseUsersSortInputType
+
+    """
+    Only include users with the given ids.
+
+    **This field is deprecated, use `filter: {userIds}` instead.**
+    """
+    userIds: [ID!]
+  ): Int
 }
 
 """
@@ -3247,10 +3270,18 @@ type Discussion implements LegacyIDInterface & ModuleItemInterface & Node & Time
     """
     roleTypes: [String!]
   ): User
-  entriesTotalPages(filter: DiscussionFilterType, perPage: Int!, rootEntries: Boolean, searchTerm: String, sortOrder: DiscussionSortOrderType, unreadBefore: String): Int
+  entriesTotalPages(
+    filter: DiscussionFilterType
+    perPage: Int!
+    rootEntries: Boolean
+    searchTerm: String
+    sortOrder: DiscussionSortOrderType
+    unreadBefore: String
+  ): Int
   entryCounts: DiscussionEntryCounts
   expanded: Boolean
   expandedLocked: Boolean
+  graded: Boolean
   groupSet: GroupSet
   id: ID!
   initialPostRequiredForCurrentUser: Boolean!
@@ -3298,7 +3329,12 @@ type Discussion implements LegacyIDInterface & ModuleItemInterface & Node & Time
   published: Boolean!
   replyToEntryRequiredCount: Int!
   requireInitialPost: Boolean
-  rootEntriesTotalPages(filter: DiscussionFilterType, perPage: Int!, searchTerm: String, sortOrder: DiscussionSortOrderType): Int
+  rootEntriesTotalPages(
+    filter: DiscussionFilterType
+    perPage: Int!
+    searchTerm: String
+    sortOrder: DiscussionSortOrderType
+  ): Int
   rootTopic: Discussion
   searchEntryCount(filter: DiscussionFilterType, searchTerm: String): Int
   sortByRating: Boolean
@@ -3878,6 +3914,7 @@ type ExternalTool implements LegacyIDInterface & ModuleItemInterface & Timestamp
   canUnpublish: Boolean
   createdAt: DateTime
   description: String
+  graded: Boolean
   isLockedByMasterCourse: Boolean!
   modules: [Module!]
   name: String
@@ -3980,6 +4017,7 @@ type ExternalUrl implements LegacyIDInterface & ModuleItemInterface & Timestampe
   """
   canUnpublish: Boolean
   createdAt: DateTime
+  graded: Boolean
   isLockedByMasterCourse: Boolean!
   modules: [Module!]
   newTab: Boolean
@@ -4010,6 +4048,7 @@ type File implements LegacyIDInterface & ModuleItemInterface & Node & Timestampe
   createdAt: DateTime
   displayName: String
   fileState: String
+  graded: Boolean
   id: ID!
   isLockedByMasterCourse: Boolean!
   lockAt: DateTime
@@ -4658,7 +4697,8 @@ scalar HtmlEncodedString
 """
 An ISO 8601-encoded datetime
 """
-scalar ISO8601DateTime @specifiedBy(url: "https:\/\/tools.ietf.org\/html\/rfc3339")
+scalar ISO8601DateTime
+  @specifiedBy(url: "https:\/\/tools.ietf.org\/html\/rfc3339")
 
 """
 An ISO 8601-encoded duration
@@ -4741,7 +4781,10 @@ type LearningOutcome implements LegacyIDInterface & Node & Timestamped {
   createdAt: DateTime
   description: String
   displayName: String
-  friendlyDescription(contextId: ID!, contextType: String!): OutcomeFriendlyDescriptionType
+  friendlyDescription(
+    contextId: ID!
+    contextType: String!
+  ): OutcomeFriendlyDescriptionType
   id: ID!
   isImported(targetContextId: ID!, targetContextType: String!): Boolean
   masteryPoints: Float
@@ -5134,6 +5177,7 @@ type Module implements LegacyIDInterface & Node & Timestamped {
   completionRequirements: [ModuleCompletionRequirement!]
   createdAt: DateTime
   estimatedDuration: ISO8601Duration
+  hasActiveOverrides: Boolean!
   id: ID!
   moduleItems: [ModuleItem!]
   name: String
@@ -5147,6 +5191,7 @@ type Module implements LegacyIDInterface & Node & Timestamped {
   published: Boolean
   requireSequentialProgress: Boolean
   requirementCount: Int
+  statistics: ModuleStatistics
   unlockAt: DateTime
   updatedAt: DateTime
 }
@@ -5205,6 +5250,7 @@ type ModuleExternalTool implements LegacyIDInterface & ModuleItemInterface & Tim
   """
   canUnpublish: Boolean
   createdAt: DateTime
+  graded: Boolean
   isLockedByMasterCourse: Boolean!
   modules: [Module!]
   pointsPossible: Float
@@ -5331,6 +5377,7 @@ interface ModuleItemInterface {
   Whether the module item can be unpublished
   """
   canUnpublish: Boolean
+  graded: Boolean
   isLockedByMasterCourse: Boolean!
   modules: [Module!]
   pointsPossible: Float
@@ -5432,6 +5479,11 @@ type ModuleProgressionEdge {
   The item at the end of the edge.
   """
   node: ModuleProgression
+}
+
+type ModuleStatistics {
+  latestDueAt: ISO8601DateTime
+  missingAssignmentCount: Int!
 }
 
 """
@@ -6305,6 +6357,7 @@ type Page implements LegacyIDInterface & ModuleItemInterface & Node & Timestampe
   """
   canUnpublish: Boolean
   createdAt: DateTime
+  graded: Boolean
   id: ID!
   isLockedByMasterCourse: Boolean!
   modules: [Module!]
@@ -6881,6 +6934,7 @@ type Quiz implements LegacyIDInterface & ModuleItemInterface & Node & Timestampe
   """
   canUnpublish: Boolean
   createdAt: DateTime
+  graded: Boolean
   id: ID!
   isLockedByMasterCourse: Boolean!
   modules: [Module!]
@@ -7641,6 +7695,7 @@ type SubHeader implements ModuleItemInterface {
   Whether the module item can be unpublished
   """
   canUnpublish: Boolean
+  graded: Boolean
   isLockedByMasterCourse: Boolean!
   modules: [Module!]
   pointsPossible: Float
@@ -8210,7 +8265,14 @@ input SubmissionHistoryFilterInput {
   history results. Defaults to true.
   """
   includeCurrentSubmission: Boolean = true
-  states: [SubmissionState!] = [deleted, graded, pending_review, submitted, ungraded, unsubmitted]
+  states: [SubmissionState!] = [
+    deleted
+    graded
+    pending_review
+    submitted
+    ungraded
+    unsubmitted
+  ]
 }
 
 """
@@ -8458,6 +8520,12 @@ input SubmissionSearchFilterInput {
   userId: ID
 
   """
+  Return only submissions related to group representative for the user_id
+  There is no character restriction on this field
+  """
+  userRepresentativeId: ID
+
+  """
   The partial name or full ID of the users to match and return in the
   results list. Must be at least 3 characters.
   Queries by administrative users will search on SIS ID, login ID, name, or email
@@ -8490,6 +8558,11 @@ enum SubmissionState {
   submitted
   ungraded
   unsubmitted
+}
+
+type SubmissionStatistics {
+  missingSubmissionsCount: Int!
+  submissionsDueThisWeekCount: Int!
 }
 
 enum SubmissionStatusTagType {
@@ -9415,7 +9488,11 @@ type User implements LegacyIDInterface & Node & Timestamped {
   loginId: String
   name: HtmlEncodedString
   notificationPreferences: NotificationPreferences
-  notificationPreferencesEnabled(accountId: ID, contextType: NotificationPreferencesContextType!, courseId: ID): Boolean!
+  notificationPreferencesEnabled(
+    accountId: ID
+    contextType: NotificationPreferencesContextType!
+    courseId: ID
+  ): Boolean!
   pronouns: String
   recipients(context: String, search: String): Recipients
   recipientsObservers(

@@ -1173,7 +1173,7 @@ class ExternalToolsController < ApplicationController
     if params.key?(:client_id)
       raise ActiveRecord::RecordInvalid unless developer_key.usable_in_context?(@context)
 
-      @tool = developer_key.lti_registration.new_external_tool(@context, verify_uniqueness: params.dig(:external_tool, :verify_uniqueness).present?)
+      @tool = developer_key.lti_registration.new_external_tool(@context, verify_uniqueness: params.dig(:external_tool, :verify_uniqueness).present?, current_user: @current_user)
     else
       external_tool_params = (params[:external_tool] || params).to_unsafe_h
       @tool = @context.context_external_tools.new
@@ -1712,6 +1712,7 @@ class ExternalToolsController < ApplicationController
                 is_top_nav_favorite
                 unified_tool_id]
     attrs += [:allow_membership_service_access] if @context.root_account.feature_enabled?(:membership_service_for_lti_tools)
+    attrs += [:estimated_duration_attributes] if @context.try(:horizon_course?)
 
     attrs.each do |prop|
       tool.send(:"#{prop}=", params[prop]) if params.key?(prop)

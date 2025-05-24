@@ -25,9 +25,9 @@ import {Flex} from '@instructure/ui-flex'
 import {View} from '@instructure/ui-view'
 
 import {useScope as createI18nScope} from '@canvas/i18n'
-import {DeepLinkResponse} from '@canvas/deep-linking/DeepLinkResponse'
+import type {DeepLinkResponse} from '@canvas/deep-linking/DeepLinkResponse'
 import {handleExternalContentMessages} from '@canvas/external-tools/messages'
-import {LtiLaunchDefinition} from '@canvas/select-content-dialog/jquery/select_content_dialog'
+import type {LtiLaunchDefinition} from '@canvas/select-content-dialog/jquery/select_content_dialog'
 
 import {
   AssetProcessorsAddModalState,
@@ -67,6 +67,11 @@ export function AssetProcessorsAddModal(props: AssetProcessorsAddModalProps) {
     >
       <Modal.Header>
         <CloseButton
+          elementRef={el => {
+            if (el) {
+              el.setAttribute('data-pendo', 'asset-processors-add-modal-close-button')
+            }
+          }}
           onClick={close}
           offset="medium"
           placement="end"
@@ -95,7 +100,9 @@ function assetProcessorsAddModelFooter({tag, showToolList}: AssetProcessorsAddMo
     case 'toolLaunch':
       return (
         <Modal.Footer>
-          <Button onClick={showToolList}>{I18n.t('Back')}</Button>
+          <Button id="asset-processors-add-modal-back-button" onClick={showToolList}>
+            {I18n.t('Back')}
+          </Button>
         </Modal.Footer>
       )
   }
@@ -122,6 +129,8 @@ function AssetProcessorsAddModalBody(props: AssetProcessorsAddModalProps) {
       }
     case 'toolLaunch':
       return <AssetProcessorsAddModalBodyToolLaunch {...props} tool={state.tool} />
+    case 'invalidDeepLinkingResponse':
+      return <Text>{invalidDeepLinkingResponseText(state.tool)}</Text>
   }
 }
 
@@ -161,7 +170,7 @@ function AssetProcessorsAddModalBodyToolLaunch(
   props: AssetProcessorsAddModalProps & {tool: LtiLaunchDefinition},
 ) {
   const {courseId, secureParams, onProcessorResponse, tool} = props
-  const {close} = useAssetProcessorsAddModalState(s => s.actions)
+  const {close, showInvlidDeepLinkingResponse} = useAssetProcessorsAddModalState(s => s.actions)
 
   const placement = tool.placements?.ActivityAssetProcessor
   const toolName = placement?.title || tool.name
@@ -172,7 +181,12 @@ function AssetProcessorsAddModalBodyToolLaunch(
     () =>
       handleExternalContentMessages({
         onDeepLinkingResponse: data => {
-          tool && onProcessorResponse({tool, data})
+          try {
+            tool && onProcessorResponse({tool, data})
+          } catch (e) {
+            showInvlidDeepLinkingResponse(tool)
+            return
+          }
           close()
         },
         ready: close,
@@ -203,5 +217,12 @@ function AssetProcessorsAddModalBodyToolLaunch(
         />
       </div>
     </>
+  )
+}
+
+function invalidDeepLinkingResponseText(tool: LtiLaunchDefinition) {
+  return I18n.t(
+    'The document processing app %{title} could not be added. Please contact the tool provider.',
+    {title: tool.name},
   )
 }

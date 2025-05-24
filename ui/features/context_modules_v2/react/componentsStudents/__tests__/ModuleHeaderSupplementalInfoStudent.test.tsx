@@ -19,185 +19,111 @@
 import React from 'react'
 import {render} from '@testing-library/react'
 import {ModuleHeaderSupplementalInfoStudent} from '../ModuleHeaderSupplementalInfoStudent'
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
-import {CompletionRequirement, ModuleProgression} from '../../utils/types'
+import {CompletionRequirement, ModuleStatistics} from '../../utils/types'
 
-const queryClient = new QueryClient()
+type Props = {
+  completionRequirements?: CompletionRequirement[]
+  requirementCount?: number
+  submissionStatistics?: ModuleStatistics
+  moduleCompleted?: boolean
+}
 
-const setUp = (
-  moduleId: string,
-  completionRequirements?: CompletionRequirement[],
-  requirementCount?: number,
-  progression?: ModuleProgression,
-) => {
+const buildDefaultProps = (overrides: Partial<Props> = {}) => {
+  return {
+    completionRequirements: overrides.completionRequirements || [],
+    requirementCount: overrides.requirementCount !== undefined ? overrides.requirementCount : 0,
+    submissionStatistics: overrides.submissionStatistics || {
+      latestDueAt: null,
+      missingAssignmentCount: 0,
+    },
+    moduleCompleted: overrides?.moduleCompleted || false,
+  }
+}
+
+const setUp = (props = buildDefaultProps()) => {
   return render(
-    <QueryClientProvider client={queryClient}>
-      <ModuleHeaderSupplementalInfoStudent
-        moduleId={moduleId}
-        completionRequirements={completionRequirements}
-        requirementCount={requirementCount}
-        progression={progression}
-      />
-    </QueryClientProvider>,
+    <ModuleHeaderSupplementalInfoStudent
+      completionRequirements={props.completionRequirements}
+      requirementCount={props.requirementCount}
+      submissionStatistics={props.submissionStatistics}
+      moduleCompleted={props.moduleCompleted}
+    />,
   )
 }
 
 describe('ModuleHeaderSupplementalInfoStudent', () => {
-  it('renders date, overdue count, and requirement', () => {
+  it('renders date, missing count, and requirement', () => {
     const testDate = new Date(Date.now() - 72 * 60 * 60 * 1000)
-    queryClient.setQueryData(['moduleItemsStudent', '1'], {
-      moduleItems: [
-        {
-          _id: '1',
-          content: {
-            submissionsConnection: {
-              nodes: [
-                {
-                  cachedDueDate: testDate.toISOString(),
-                },
-              ],
-            },
-          },
-        },
-      ],
-    })
     const container = setUp(
-      '1',
-      [
-        {
-          id: '1',
-          type: 'assignment',
-          minScore: 100,
-          minPercentage: 100,
+      buildDefaultProps({
+        completionRequirements: [
+          {
+            id: '1',
+            type: 'assignment',
+            minScore: 100,
+            minPercentage: 100,
+          },
+        ],
+        submissionStatistics: {
+          latestDueAt: testDate.toISOString(),
+          missingAssignmentCount: 1,
         },
-      ],
-      0,
-      {
-        id: '1',
-        _id: '1',
-        workflowState: 'started',
-        requirementsMet: [],
-        completed: false,
-        locked: false,
-        unlocked: true,
-        started: true,
-      },
+      }),
     )
     expect(container.container).toBeInTheDocument()
     expect(container.getByText(`Due: ${testDate.toDateString()}`)).toBeInTheDocument()
-    expect(container.getByText('1 Overdue Assignment')).toBeInTheDocument()
+    expect(container.getByText('1 Missing Assignment')).toBeInTheDocument()
     expect(container.getByText('Requirement: Complete All Items')).toBeInTheDocument()
     expect(container.getAllByText('|')).toHaveLength(2)
   })
 
   it('renders date', () => {
     const testDate = new Date(Date.now() + 72 * 60 * 60 * 1000)
-    queryClient.setQueryData(['moduleItemsStudent', '1'], {
-      moduleItems: [
-        {
-          _id: '1',
-          content: {
-            submissionsConnection: {
-              nodes: [
-                {
-                  cachedDueDate: testDate.toISOString(),
-                },
-              ],
-            },
-          },
+    const container = setUp(
+      buildDefaultProps({
+        submissionStatistics: {
+          latestDueAt: testDate.toISOString(),
+          missingAssignmentCount: 0,
         },
-      ],
-    })
-    const container = setUp('1', [], 0, {
-      id: '1',
-      _id: '1',
-      workflowState: 'started',
-      requirementsMet: [],
-      completed: false,
-      locked: false,
-      unlocked: true,
-      started: true,
-    })
+      }),
+    )
     expect(container.container).toBeInTheDocument()
     expect(container.getByText(`Due: ${testDate.toDateString()}`)).toBeInTheDocument()
     expect(container.queryAllByText('|')).toHaveLength(0)
   })
 
   it('renders requirement', () => {
-    queryClient.setQueryData(['moduleItemsStudent', '1'], {
-      moduleItems: [
-        {
-          _id: '1',
-          content: {
-            submissionsConnection: {
-              nodes: [
-                {
-                  cachedDueDate: null,
-                },
-              ],
-            },
-          },
-        },
-      ],
-    })
     const container = setUp(
-      '1',
-      [
-        {
-          id: '1',
-          type: 'assignment',
-          minScore: 100,
-          minPercentage: 100,
-        },
-      ],
-      1,
-      {
-        id: '1',
-        _id: '1',
-        workflowState: 'started',
-        requirementsMet: [],
-        completed: false,
-        locked: false,
-        unlocked: true,
-        started: true,
-      },
+      buildDefaultProps({
+        completionRequirements: [
+          {
+            id: '1',
+            type: 'assignment',
+            minScore: 100,
+            minPercentage: 100,
+          },
+        ],
+        requirementCount: 1,
+      }),
     )
     expect(container.container).toBeInTheDocument()
     expect(container.getByText('Requirement: Complete One Item')).toBeInTheDocument()
     expect(container.queryAllByText('|')).toHaveLength(0)
   })
 
-  it('renders due date and overdue count', () => {
+  it('renders due date and missing count', () => {
     const testDate = new Date(Date.now() - 72 * 60 * 60 * 1000)
-    queryClient.setQueryData(['moduleItemsStudent', '1'], {
-      moduleItems: [
-        {
-          _id: '1',
-          content: {
-            submissionsConnection: {
-              nodes: [
-                {
-                  cachedDueDate: testDate.toISOString(),
-                },
-              ],
-            },
-          },
+    const container = setUp(
+      buildDefaultProps({
+        submissionStatistics: {
+          latestDueAt: testDate.toISOString(),
+          missingAssignmentCount: 1,
         },
-      ],
-    })
-    const container = setUp('1', [], 0, {
-      id: '1',
-      _id: '1',
-      workflowState: 'started',
-      requirementsMet: [],
-      completed: false,
-      locked: false,
-      unlocked: true,
-      started: true,
-    })
+      }),
+    )
     expect(container.container).toBeInTheDocument()
     expect(container.getByText(`Due: ${testDate.toDateString()}`)).toBeInTheDocument()
-    expect(container.getByText('1 Overdue Assignment')).toBeInTheDocument()
+    expect(container.getByText('1 Missing Assignment')).toBeInTheDocument()
     expect(container.queryAllByText('|')).toHaveLength(1)
   })
 })

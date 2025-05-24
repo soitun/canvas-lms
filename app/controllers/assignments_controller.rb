@@ -820,7 +820,6 @@ class AssignmentsController < ApplicationController
        authorized_action(@assignment, @current_user, @assignment.new_record? ? :create : :update)
       js_env({ ASSIGNMENT_EDIT_ENHANCEMENTS_TEACHER_VIEW: true, ASSIGNMENT_ID: params[:id], COURSE_ID: @context.id })
       css_bundle :assignment_enhancements_teacher_view
-      js_bundle :assignment_edit
       render html: "", layout: true
       return
     end
@@ -890,7 +889,8 @@ class AssignmentsController < ApplicationController
         PERMISSIONS: {
           can_manage_groups: can_do(@context.groups.temp_record, @current_user, :create),
           can_edit_grades: can_do(@context, @current_user, :manage_grades),
-          manage_grading_schemes: can_do(@context, @current_user, :manage_grades)
+          manage_grading_schemes: can_do(@context, @current_user, :manage_grades),
+          manage_rubrics: @context.grants_right?(@current_user, session, :manage_rubrics)
         },
         PLAGIARISM_DETECTION_PLATFORM: Lti::ToolProxy.capability_enabled_in_context?(
           @assignment.course,
@@ -978,6 +978,10 @@ class AssignmentsController < ApplicationController
 
       hash[:USAGE_RIGHTS_REQUIRED] = @context.try(:usage_rights_required?)
       hash[:restrict_quantitative_data] = @context.is_a?(Course) ? @context.restrict_quantitative_data?(@current_user) : false
+
+      if @assignment.quiz_lti? && @assignment.persisted? && Rubric.enhanced_rubrics_assignments_enabled?(@context)
+        enhanced_rubrics_assignments_js_env(@assignment)
+      end
 
       js_env(hash)
       conditional_release_js_env(@assignment)

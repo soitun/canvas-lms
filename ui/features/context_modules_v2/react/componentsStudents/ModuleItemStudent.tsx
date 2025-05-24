@@ -25,12 +25,13 @@ import {getItemIcon, INDENT_LOOKUP} from '../utils/utils'
 import {CompletionRequirement, ModuleItemContent, ModuleProgression} from '../utils/types'
 import ModuleItemSupplementalInfoStudent from './ModuleItemSupplementalInfoStudent'
 import ModuleItemStatusIcon from './ModuleItemStatusIcon'
-import {IconLockLine} from '@instructure/ui-icons'
 
 export interface ModuleItemStudentProps {
   _id: string
   url: string
   indent: number
+  position: number
+  requireSequentialProgress: boolean
   index: number
   content: ModuleItemContent
   onClick?: () => void
@@ -42,18 +43,24 @@ const ModuleItemStudent: React.FC<ModuleItemStudentProps> = ({
   _id,
   url,
   indent,
+  position,
+  requireSequentialProgress,
   content,
   onClick,
   completionRequirements,
   progression,
 }) => {
-  const itemIcon = useMemo(() => getItemIcon(content, true), [content])
+  // Hooks must be called unconditionally
+  const itemIcon = useMemo(() => (content ? getItemIcon(content, true) : null), [content])
   const itemLeftMargin = useMemo(() => INDENT_LOOKUP[indent ?? 0], [indent])
+
+  // Early return after hooks
+  if (!content) return null
 
   return (
     <View
       as="div"
-      padding="medium small medium x-small"
+      padding="small small small x-small"
       background="transparent"
       borderWidth="0"
       borderRadius="medium"
@@ -67,16 +74,18 @@ const ModuleItemStudent: React.FC<ModuleItemStudentProps> = ({
               {/* Item Title */}
               <Flex.Item>
                 <Flex.Item shouldGrow={true}>
-                  {progression?.locked ? (
+                  {progression?.locked ||
+                  (requireSequentialProgress &&
+                    progression?.currentPosition &&
+                    progression?.currentPosition < position) ? (
                     <Flex alignItems="center">
-                      <Text weight="bold" color="secondary">
+                      <Text weight="light" color="secondary" data-testid="module-item-title-locked">
                         {content?.title || 'Untitled Item'}
                       </Text>
-                      <IconLockLine size="x-small" />
                     </Flex>
                   ) : (
                     <Link href={url} isWithinText={false} onClick={onClick}>
-                      <Text weight="bold" color="primary">
+                      <Text weight="bold" color="primary" data-testid="module-item-title">
                         {content?.title || 'Untitled Item'}
                       </Text>
                     </Link>
@@ -112,7 +121,8 @@ const ModuleItemStudent: React.FC<ModuleItemStudentProps> = ({
         <Flex.Item>
           <ModuleItemStatusIcon
             itemId={_id || ''}
-            completionRequirement={completionRequirements?.find(req => req.id === _id)}
+            moduleCompleted={progression?.completed || false}
+            completionRequirements={completionRequirements}
             requirementsMet={progression?.requirementsMet || []}
             content={content}
           />

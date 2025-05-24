@@ -30,7 +30,9 @@ class ContextExternalTool < ActiveRecord::Base
   has_many :lti_notice_handlers, class_name: "Lti::NoticeHandler"
   has_many :lti_asset_processors, class_name: "Lti::AssetProcessor"
   has_many :lti_asset_processor_eula_acceptances, class_name: "Lti::AssetProcessorEulaAcceptance", inverse_of: :context_external_tool, dependent: :destroy
-  has_many :context_controls, class_name: "Lti::ContextControl", inverse_of: :deployment
+  has_many :context_controls, class_name: "Lti::ContextControl", inverse_of: :deployment, dependent: :destroy
+
+  has_one :estimated_duration, dependent: :destroy, inverse_of: :external_tool
 
   belongs_to :context, polymorphic: [:course, :account]
   belongs_to :developer_key
@@ -52,6 +54,8 @@ class ContextExternalTool < ActiveRecord::Base
   validate :url_or_domain_is_set
   validate :validate_urls
   attr_reader :config_type, :config_url, :config_xml
+
+  accepts_nested_attributes_for :estimated_duration, allow_destroy: true
 
   # handles both serialized Hashes and HashWithIndifferentAccesses
   # and always returns a HashWithIndifferentAccess
@@ -895,6 +899,10 @@ class ContextExternalTool < ActiveRecord::Base
   alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = "deleted"
+    # update all the associated context_control's workflow_state to deleted
+    Lti::ContextControl
+      .where(deployment_id: id)
+      .update_all(workflow_state: "deleted")
     save!
   end
 

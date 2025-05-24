@@ -52,13 +52,13 @@ class ModuleItemsLazyLoader {
   }
 
   emptyModuleOfItems(moduleItemContainer: Element) {
-    const currentItems = moduleItemContainer.querySelector('.context_module_items')
-    if (currentItems) {
-      currentItems.remove()
-    }
+    moduleItemContainer.querySelector('.context_module_items')?.remove()
   }
 
-  renderResult(moduleId: ModuleId, moduleItemContainer: Element, text: string, links?: Links) {
+  renderResult(moduleId: ModuleId, text: string, links?: Links) {
+    const moduleItemContainer = document.querySelector(`#context_module_content_${moduleId}`)
+    if (!moduleItemContainer) return
+
     this.emptyModuleOfItems(moduleItemContainer)
     moduleItemContainer.insertAdjacentHTML('afterbegin', text)
     const module = moduleFromId(moduleId)
@@ -119,8 +119,6 @@ class ModuleItemsLazyLoader {
     pageParam?: number,
     allPagesParam?: boolean,
   ): Promise<void> {
-    const moduleItemContainer = document.querySelector(`#context_module_content_${moduleId}`)
-    if (!moduleItemContainer) return
     const module = moduleFromId(moduleId)
     if (!module) return
 
@@ -155,10 +153,14 @@ class ModuleItemsLazyLoader {
         },
       })
 
+      if (!allPages && !result.link?.last && page > 1) {
+        return await this.fetchModuleItemsHtml(moduleId, page - 1)
+      }
+
       this.clearPageNumberIfAllPages(moduleId, allPages)
       this.savePageNumber(moduleId, allPages, page)
       this.saveAllPage(moduleId, allPages)
-      this.renderResult(moduleId, moduleItemContainer, result.text, result.link)
+      this.renderResult(moduleId, result.text, result.link)
       this.callback(moduleId)
     } catch (_e) {
       module.dataset.loadstate = 'error'

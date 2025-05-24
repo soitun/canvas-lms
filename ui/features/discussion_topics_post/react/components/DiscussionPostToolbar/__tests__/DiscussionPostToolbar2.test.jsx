@@ -213,11 +213,19 @@ describe('DiscussionPostToolbar', () => {
     })
 
     describe('when the discussion topic is an announcement', () => {
-      it('does not render the translate button', () => {
+      it('does render the translate button', () => {
         const {queryByTestId} = setup({isAnnouncement: true}, null, {
           translationLanguages: {current: ['en', 'es']},
         })
-        expect(queryByTestId('translate-button')).toBeNull()
+        expect(queryByTestId('translate-button')).toBeTruthy()
+      })
+
+      it('does render the new button label if the flag is on', () => {
+        ENV.ai_translation_improvements = true
+        const {getByText} = setup({isAnnouncement: true}, null, {
+          translationLanguages: {current: ['en', 'es']},
+        })
+        expect(getByText('Translate Announcement')).toBeTruthy()
       })
     })
 
@@ -239,12 +247,16 @@ describe('DiscussionPostToolbar', () => {
       })
 
       it('does render the translate button with improved text when the translation controls are on', () => {
-        const {getByText} = setup(null, null, {
+        const {getByText, getByTestId} = setup(null, null, {
           translationLanguages: {current: ['en', 'es']},
           showTranslationControl: true,
         })
 
         expect(getByText('Turn off Translation')).toBeTruthy()
+        expect(getByTestId('translate-button')).toHaveAttribute(
+          'data-action-state',
+          'disableTranslation',
+        )
       })
     })
 
@@ -254,6 +266,10 @@ describe('DiscussionPostToolbar', () => {
       })
 
       expect(getByTestId('translate-button')).toBeTruthy()
+      expect(getByTestId('translate-button')).toHaveAttribute(
+        'data-action-state',
+        'enableTranslation',
+      )
     })
 
     it('does call setShowTranslationControl when clicked', () => {
