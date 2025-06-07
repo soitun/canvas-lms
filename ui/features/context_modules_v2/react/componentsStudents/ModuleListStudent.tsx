@@ -17,6 +17,7 @@
  */
 
 import React, {useState, useEffect, useCallback, memo} from 'react'
+import {debounce} from '@instructure/debounce'
 import {View} from '@instructure/ui-view'
 import {Text} from '@instructure/ui-text'
 import {Flex} from '@instructure/ui-flex'
@@ -27,7 +28,7 @@ import {useIsFetching} from '@tanstack/react-query'
 
 import {validateModuleStudentRenderRequirements} from '../utils/utils'
 import {useModulesStudent} from '../hooks/queriesStudent/useModulesStudent'
-import {useToggleCollapse} from '../hooks/mutations/useToggleCollapse'
+import {useToggleCollapse, useToggleAllCollapse} from '../hooks/mutations/useToggleCollapse'
 import {Spinner} from '@instructure/ui-spinner'
 import {useScope as createI18nScope} from '@canvas/i18n'
 import {useContextModule} from '../hooks/useModuleContext'
@@ -44,6 +45,8 @@ const ModulesListStudent: React.FC = () => {
 
   // Initialize with an empty Map - all modules will be collapsed by default
   const [expandedModules, setExpandedModules] = useState<Map<string, boolean>>(new Map())
+
+  const toggleAllCollapse = useToggleAllCollapse(courseId)
 
   // Set initial expanded state for modules when data is loaded
   useEffect(() => {
@@ -93,33 +96,75 @@ const ModulesListStudent: React.FC = () => {
 
   const toggleCollapseMutation = useToggleCollapse(courseId)
 
+  const debouncedToggleCollapse = useCallback(() => {
+    const debouncedFn = debounce((params: {moduleId: string; collapse: boolean}) => {
+      toggleCollapseMutation.mutate(params)
+    }, 500)
+
+    return debouncedFn
+  }, [toggleCollapseMutation])() // Execute immediately to get the debounced function
+
+  const handleToggleAllCollapse = useCallback(
+    (collapse: boolean) => {
+      // Set the button disabled state immediately
+      setExpandCollapseButtonDisabled(true)
+
+      toggleAllCollapse.mutate(collapse, {
+        onSettled: () => {
+          // Reset disabled state when complete, whether success or error
+          setExpandCollapseButtonDisabled(false)
+        },
+      })
+    },
+    [toggleAllCollapse, setExpandCollapseButtonDisabled],
+  )
+
+  // Clean up debounced functions on unmount
+  useEffect(() => {
+    return () => {
+      // Cancel any pending debounced calls
+      debouncedToggleCollapse.cancel()
+    }
+  }, [debouncedToggleCollapse])
+
   const handleToggleExpandRef = useCallback(
     (moduleId: string) => {
       const currentExpanded = expandedModules.get(moduleId) || false
 
+      // Update UI immediately for responsiveness
       setExpandedModules(prev => {
         const newState = new Map(prev)
         newState.set(moduleId, !currentExpanded)
         return newState
       })
 
-      // Call the API to persist the collapsed state
+      // Debounce the API call to persist the collapsed state
       // Note: the endpoint expects 'collapse' which is the opposite of 'expanded'
-      toggleCollapseMutation.mutate({
+      debouncedToggleCollapse({
         moduleId,
         collapse: currentExpanded, // If currently expanded, we're collapsing it
       })
     },
-    [expandedModules, toggleCollapseMutation],
+    [expandedModules, debouncedToggleCollapse],
   )
 
   return (
     <View as="div" margin="medium">
       <ModulePageActionHeaderStudent
-        onCollapseAll={() => handleCollapseAll(data, setExpandedModules)}
+        onCollapseAll={() => {
+          // Update UI immediately
+          handleCollapseAll(data, setExpandedModules)
+
+          // Debounce the API call to persist collapsed state for all modules
+          handleToggleAllCollapse(true)
+        }}
         onExpandAll={() => {
+          // Update UI immediately
           handleExpandAll(data, setExpandedModules)
-          setExpandCollapseButtonDisabled(true)
+
+          // Debounce the API call to persist expanded state for all modules
+          // This will automatically set button disabled state and reset it after completion
+          handleToggleAllCollapse(false)
         }}
         anyModuleExpanded={Array.from(expandedModules.values()).some(expanded => expanded)}
         disabled={expandCollapseButtonDisabled}

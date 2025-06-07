@@ -17,15 +17,17 @@
  */
 
 import {Editor, Frame, SerializedNodes} from '@craftjs/core'
-import {AddBlock} from './AddBlock/AddBlock'
+import {AddBlock} from './AddBlock'
+import {DummyBlock} from './Blocks/DummyBlock'
+import {TextBlock} from './Blocks/TextBlock'
 
 export const PageEditor = (props: {
   data: SerializedNodes | null
 }) => {
   return (
     <>
-      <Editor>
-        <AddBlock onAddBlock={() => {}} />
+      <Editor resolver={{DummyBlock, TextBlock}}>
+        <AddBlock />
         <Frame data={props.data ?? undefined}>{!props.data && <article></article>}</Frame>
       </Editor>
     </>

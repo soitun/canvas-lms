@@ -21,14 +21,18 @@ import {Button, CloseButton} from '@instructure/ui-buttons'
 import {Flex} from '@instructure/ui-flex'
 import {Heading} from '@instructure/ui-heading'
 import {Modal} from '@instructure/ui-modal'
+import {AddBlockModalBody} from './AddBlockModalBody'
+import {ReactElement, useState} from 'react'
 
 const I18n = createI18nScope('page_editor')
 
 export const AddBlockModal = (props: {
   open: boolean
   onDismiss: () => void
-  onAddBlock: (type: string) => void
+  onAddBlock: (block: ReactElement) => void
 }) => {
+  const [selectedBlock, setSelectedBlock] = useState<ReactElement>()
+
   return (
     <Modal
       label={I18n.t('Add new block')}
@@ -46,7 +50,9 @@ export const AddBlockModal = (props: {
           />
         </Flex>
       </Modal.Header>
-      <Modal.Body></Modal.Body>
+      <Modal.Body>
+        <AddBlockModalBody onBlockSelected={setSelectedBlock} />
+      </Modal.Body>
       <Modal.Footer>
         <Flex justifyItems="end" gap="small">
           <Button color="secondary" onClick={props.onDismiss} data-testid="add-modal-cancel-button">
@@ -55,7 +61,7 @@ export const AddBlockModal = (props: {
           <Button
             color="primary"
             onClick={() => {
-              props.onAddBlock('new_block')
+              props.onAddBlock(selectedBlock!)
               props.onDismiss()
             }}
           >
