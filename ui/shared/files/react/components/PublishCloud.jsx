@@ -26,11 +26,17 @@ import 'jqueryui/dialog'
 
 const I18n = createI18nScope('publish_cloud')
 
+PublishCloud.componentWillMount = function () {
+  this.publishCloudRef = React.createRef()
+}
+
 // Function Summary
 // Create a blank dialog window via jQuery, then dump the RestrictedDialogForm into that
 // dialog window. This allows us to do react things inside of this all ready rendered
 // jQueryUI widget
 PublishCloud.openRestrictedDialog = function () {
+  const buttonId = `publish-cloud-${this.props.model.id}`
+  const originatorButton = $(`#${buttonId}`) ? $(`#${buttonId}`)[0] : null
   const $dialog = $('<div>').dialog({
     title: I18n.t('Editing permissions for: %{name}', {name: this.props.model.displayName()}),
     width: 800,
@@ -38,6 +44,9 @@ PublishCloud.openRestrictedDialog = function () {
     close() {
       ReactDOM.unmountComponentAtNode(this)
       $(this).remove()
+      setTimeout(() => {
+        originatorButton?.focus()
+      }, 0)
     },
     modal: true,
     zIndex: 1000,
@@ -63,11 +72,12 @@ PublishCloud.render = function () {
     if (this.state.published && this.state.restricted) {
       return (
         <button
+          id={`publish-cloud-${this.props.model.id}`}
           data-testid="restricted-button"
           type="button"
           data-tooltip="left"
           onClick={this.openRestrictedDialog}
-          ref="publishCloud"
+          ref={this.publishCloudRef}
           className="btn-link published-status restricted"
           title={this.getRestrictedText()}
           aria-label={I18n.t('%{fileName} is %{restricted} - Click to modify', {
@@ -82,11 +92,12 @@ PublishCloud.render = function () {
     } else if (this.state.published && this.state.hidden) {
       return (
         <button
+          id={`publish-cloud-${this.props.model.id}`}
           data-testid="hidden-button"
           type="button"
           data-tooltip="left"
           onClick={this.openRestrictedDialog}
-          ref="publishCloud"
+          ref={this.publishCloudRef}
           className="btn-link published-status hiddenState"
           title={I18n.t('Only available to students with link')}
           aria-label={I18n.t(
@@ -103,11 +114,12 @@ PublishCloud.render = function () {
     } else if (this.state.published) {
       return (
         <button
+          id={`publish-cloud-${this.props.model.id}`}
           data-testid="published-button"
           type="button"
           data-tooltip="left"
           onClick={this.openRestrictedDialog}
-          ref="publishCloud"
+          ref={this.publishCloudRef}
           className="btn-link published-status published"
           title={I18n.t('Published')}
           aria-label={I18n.t('%{fileName} is Published - Click to modify', {fileName})}
@@ -119,11 +131,12 @@ PublishCloud.render = function () {
     } else {
       return (
         <button
+          id={`publish-cloud-${this.props.model.id}`}
           data-testid="unpublished-button"
           type="button"
           data-tooltip="left"
           onClick={this.openRestrictedDialog}
-          ref="publishCloud"
+          ref={this.publishCloudRef}
           className="btn-link published-status unpublished"
           title={I18n.t('Unpublished')}
           aria-label={I18n.t('%{fileName} is Unpublished - Click to modify', {fileName})}
@@ -139,7 +152,7 @@ PublishCloud.render = function () {
         data-testid="restricted-status"
         style={{marginRight: '12px'}}
         data-tooltip="left"
-        ref="publishCloud"
+        ref={this.publishCloudRef}
         className="published-status restricted"
         title={this.getRestrictedText()}
         aria-label={I18n.t('%{fileName} is %{restricted}', {
