@@ -18,7 +18,6 @@
 
 import {Editor, Frame, SerializedNodes} from '@craftjs/core'
 import {AddBlock} from './AddBlock'
-import {DummyBlock} from './Blocks/DummyBlock'
 import {TextBlock} from './Blocks/TextBlock'
 import {PageEditorContext} from './PageEditorContext'
 import {AddBlockModalRenderer} from './AddBlock/AddBlockModalRenderer'
@@ -30,11 +29,11 @@ export const PageEditor = (props: {
   data: SerializedNodes | null
 }) => {
   return (
-    <PageEditorContext>
+    <PageEditorContext data={props.data}>
       <PageEditorLayout
         toolbar={<Toolbar />}
         editor={
-          <Editor resolver={{DummyBlock, TextBlock, ImageBlock}}>
+          <Editor resolver={{TextBlock, ImageBlock}}>
             <AddBlockModalRenderer />
             <AddBlock />
             <Frame data={props.data ?? undefined}>{!props.data && <article></article>}</Frame>

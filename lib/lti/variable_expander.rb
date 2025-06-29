@@ -2211,29 +2211,53 @@ module Lti
                        -> { TextHelper.round_if_whole(@assignment.points_possible) },
                        ASSIGNMENT_GUARD
 
-    # Returns the decimal separator for the root account.
-    # This is used to have custom formatting on numbers, independent from root account's locale.
-    # If the root account does not have a decimal separator set, it will return "$Canvas.root_account.decimal_separator".
+    # Returns the decimal separator for the current context account.
+    # This is used to have custom formatting on numbers, independent from the account's locale.
+    # If the account does not have a decimal separator set, it will return "$Canvas.account.decimal_separator".
     #
     # @example
     #   ```
     #   "comma"
     #   ```
-    register_expansion "Canvas.root_account.decimal_separator",
+    register_expansion "Canvas.account.decimal_separator",
                        [],
-                       -> { @root_account.settings.dig(:decimal_separator, :value) }
+                       lambda {
+                         if Account.site_admin.feature_enabled?(:new_quizzes_separators)
+                           lti_helper.account&.settings&.dig(:decimal_separator, :value) ||
+                             @root_account.settings&.dig(:decimal_separator, :value)
+                         end
+                       },
+                       COURSE_GUARD
 
-    # Returns the thousand separator for the root account.
-    # This is used to have custom formatting on numbers, independent from root account's locale.
-    # If the root account does not have a thousand separator set, it will return "$Canvas.root_account.decimal_separator".
+    # Returns the thousand separator for the current context account.
+    # This is used to have custom formatting on numbers, independent from the account's locale.
+    # If the account does not have a thousand separator set, it will return "$Canvas.account.thousand_separator".
     #
     # @example
     #   ```
     #   "period"
     #   ```
-    register_expansion "Canvas.root_account.thousand_separator",
+    register_expansion "Canvas.account.thousand_separator",
                        [],
-                       -> { @root_account.settings&.dig(:thousand_separator, :value) }
+                       lambda {
+                         if Account.site_admin.feature_enabled?(:new_quizzes_separators)
+                           lti_helper.account&.settings&.dig(:thousand_separator, :value) ||
+                             @root_account.settings&.dig(:thousand_separator, :value)
+                         end
+                       },
+                       COURSE_GUARD
+
+    # Returns true if the AI quiz generation feature is enabled for the course.
+    # This is used to determine whether to display the "Generate Quiz" button in the UI.
+    #
+    # @example
+    #   ```
+    #   true
+    #   ```
+    register_expansion "Canvas.course.aiQuizGeneration",
+                       [],
+                       -> { @context.feature_enabled?(:new_quizzes_ai_quiz_generation) },
+                       COURSE_GUARD
 
     private
 

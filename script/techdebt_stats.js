@@ -85,16 +85,14 @@ Usage: node techdebt_stats.js [options]
 Options:
   -h, --help                Show this help message
   -v, --verbose            Show all files instead of just examples
-  -s, --section <n>     Show only specific section(s), comma-separated (e.g., skipped,string-refs)
+  -s, --section <n>     Show only specific section(s), comma-separated (e.g., skipped,proptypes)
 
 Available sections:
   skipped         - Skipped tests
-  string-refs     - React string refs
   proptypes       - PropTypes usage
   defaultprops    - DefaultProps usage
   handlebars      - Handlebars files
   jquery          - jQuery imports
-  sinon           - Sinon imports
   reactdom        - ReactDOM.render files
   class           - React class components
   javascript      - JavaScript files
@@ -259,69 +257,30 @@ async function showJqueryImportStats(verbose = false) {
   }
 }
 
-async function countSinonImports(verbose = false) {
-  try {
-    const cmd =
-      'git ls-files "ui/" | grep -E "\\.(js|jsx|ts|tsx)$" | ' +
-      'xargs grep -l "from [\'\\"]sinon[\'\\"]"'
-    const {stdout} = await execAsync(cmd, {cwd: projectRoot})
-    return Number.parseInt(stdout.trim().split('\n').filter(Boolean).length, 10)
-  } catch (error) {
-    console.error(colorize('red', `Error counting Sinon imports: ${error.message}`))
-    return 0
-  }
-}
-
-async function getRandomSinonImportFiles(verbose = false) {
-  try {
-    const cmd =
-      'git ls-files "ui/" | grep -E "\\.(js|jsx|ts|tsx)$" | ' +
-      'xargs grep -l "from [\'\\"]sinon[\'\\"]"'
-    const {stdout} = await execAsync(cmd, {cwd: projectRoot})
-    const files = stdout.trim().split('\n').filter(Boolean)
-    return getRandomExamples(files, 3)
-  } catch (error) {
-    console.error(colorize('red', `Error finding Sinon import examples: ${error.message}`))
-  }
-  return []
-}
-
-async function showSinonImportStats(verbose = false) {
-  const count = await countSinonImports(verbose)
-  console.log(colorize('yellow', `- Files with Sinon imports: ${bold(count)}`))
-
-  if (count > 0) {
-    const files = await getGrepMatchingFiles(
-      '__tests__.*\\.(js|jsx|ts|tsx)$',
-      '\\bsinon\\b',
-      verbose,
-    )
-    if (verbose) {
-      files.sort().forEach(file => {
-        console.log(colorize('gray', `  ${file}`))
-      })
-    } else {
-      const examples = await getRandomSinonImportFiles(verbose)
-      examples.forEach(file => {
-        console.log(colorize('gray', `  Example: ${file}`))
-      })
-    }
-  }
-}
-
 async function countSkippedTests(verbose = false) {
   try {
-    const {stdout: itSkipStdout} = await execAsync(
-      `git ls-files "ui/" "packages/" | xargs grep -l "it\\.skip("`,
-      {cwd: projectRoot},
-    )
-    const {stdout: describeSkipStdout} = await execAsync(
-      `git ls-files "ui/" "packages/" | xargs grep -l "describe\\.skip("`,
-      {cwd: projectRoot},
-    )
+    let itSkipFiles = []
+    let describeSkipFiles = []
 
-    const itSkipFiles = itSkipStdout.trim().split('\n').filter(Boolean)
-    const describeSkipFiles = describeSkipStdout.trim().split('\n').filter(Boolean)
+    try {
+      const {stdout: itSkipStdout} = await execAsync(
+        `git ls-files "ui/" "packages/" | xargs grep -l 'it\\.skip(' 2>/dev/null || true`,
+        {cwd: projectRoot},
+      )
+      itSkipFiles = itSkipStdout.trim().split('\n').filter(Boolean)
+    } catch (e) {
+      // grep returns exit code 1 when no matches found
+    }
+
+    try {
+      const {stdout: describeSkipStdout} = await execAsync(
+        `git ls-files "ui/" "packages/" | xargs grep -l 'describe\\.skip(' 2>/dev/null || true`,
+        {cwd: projectRoot},
+      )
+      describeSkipFiles = describeSkipStdout.trim().split('\n').filter(Boolean)
+    } catch (e) {
+      // grep returns exit code 1 when no matches found
+    }
 
     // Combine and deduplicate files
     const allFiles = [...new Set([...itSkipFiles, ...describeSkipFiles])]
@@ -486,18 +445,29 @@ async function countReactDomRenderFiles(verbose = false) {
 
 async function countReactClassComponentFiles(verbose = false) {
   try {
-    // Find files containing class components using both patterns
-    const {stdout: reactComponentStdout} = await execAsync(
-      `git ls-files "ui/" "packages/" | xargs grep -l "extends React.Component"`,
-      {cwd: projectRoot},
-    )
-    const {stdout: componentStdout} = await execAsync(
-      `git ls-files "ui/" "packages/" | xargs grep -l "extends Component"`,
-      {cwd: projectRoot},
-    )
+    let reactComponentFiles = []
+    let componentFiles = []
 
-    const reactComponentFiles = reactComponentStdout.trim().split('\n').filter(Boolean)
-    const componentFiles = componentStdout.trim().split('\n').filter(Boolean)
+    // Find files containing class components using both patterns
+    try {
+      const {stdout: reactComponentStdout} = await execAsync(
+        `git ls-files "ui/" "packages/" | xargs grep -l "extends React.Component" 2>/dev/null || true`,
+        {cwd: projectRoot},
+      )
+      reactComponentFiles = reactComponentStdout.trim().split('\n').filter(Boolean)
+    } catch (e) {
+      // grep returns exit code 1 when no matches found
+    }
+
+    try {
+      const {stdout: componentStdout} = await execAsync(
+        `git ls-files "ui/" "packages/" | xargs grep -l "extends Component" 2>/dev/null || true`,
+        {cwd: projectRoot},
+      )
+      componentFiles = componentStdout.trim().split('\n').filter(Boolean)
+    } catch (e) {
+      // grep returns exit code 1 when no matches found
+    }
 
     // Combine and deduplicate files
     const allFiles = [...new Set([...reactComponentFiles, ...componentFiles])]
@@ -528,57 +498,6 @@ async function countReactClassComponentFiles(verbose = false) {
       )
     } else {
       console.error(colorize('red', `Error counting class component files: ${error.message}`))
-    }
-  }
-}
-
-async function countReactStringRefs(verbose = false) {
-  try {
-    // Use a more specific pattern that looks for ref=" but not href="
-    const cmd =
-      'git ls-files "ui/" "packages/" | grep -E "\\.(js|jsx|ts|tsx)$" | ' +
-      'xargs grep -l "\\bref=\\"[^\\"]*\\""'
-    const {stdout} = await execAsync(cmd, {cwd: projectRoot})
-    return Number.parseInt(stdout.trim().split('\n').filter(Boolean).length, 10)
-  } catch (error) {
-    console.error(colorize('red', `Error counting React string refs: ${error.message}`))
-    return 0
-  }
-}
-
-async function getRandomReactStringRefFiles(verbose = false) {
-  try {
-    // Use same specific pattern as countReactStringRefs
-    const cmd =
-      'git ls-files "ui/" "packages/" | grep -E "\\.(js|jsx|ts|tsx)$" | ' +
-      'xargs grep -l "\\bref=\\"[^\\"]*\\""'
-    const {stdout} = await execAsync(cmd, {cwd: projectRoot})
-    const files = stdout.trim().split('\n').filter(Boolean)
-    return getRandomExamples(files, 3)
-  } catch (error) {
-    console.error(colorize('red', `Error finding React string ref examples: ${error.message}`))
-  }
-  return []
-}
-
-async function showReactStringRefStats(verbose = false) {
-  const count = await countReactStringRefs(verbose)
-  console.log(colorize('yellow', `- Files with React string refs: ${bold(count)}`))
-  if (count > 0) {
-    if (verbose) {
-      const cmd =
-        'git ls-files "ui/" "packages/" | grep -E "\\.(js|jsx|ts|tsx)$" | ' +
-        'xargs grep -l "\\bref=\\"[^\\"]*\\""' // Fix the string-refs grep pattern
-      const {stdout} = await execAsync(cmd, {cwd: projectRoot})
-      const files = stdout.trim().split('\n').filter(Boolean)
-      files.sort().forEach(file => {
-        console.log(colorize('gray', `  ${file}`))
-      })
-    } else {
-      const examples = await getRandomReactStringRefFiles(verbose)
-      examples.forEach(file => {
-        console.log(colorize('gray', `  Example: ${file}`))
-      })
     }
   }
 }
@@ -804,7 +723,6 @@ async function showReactCompilerViolationStats(verbose = false) {
 
 function getSectionTitle(section) {
   const titles = {
-    'string-refs': ['React String Refs', '(use createRef/useRef/forwardRef/callbackRef)'],
     class: ['React Class Component Files', '(convert to function components)'],
     defaultprops: ['DefaultProps Usage', '(use default parameters/TypeScript defaults)'],
     handlebars: ['Handlebars Files', '(convert to React)'],
@@ -814,7 +732,6 @@ function getSectionTitle(section) {
     proptypes: ['PropTypes Usage', '(use TypeScript interfaces/types)'],
     reactCompiler: ['React Compiler Rule Violations', ''],
     reactdom: ['ReactDOM.render Files', '(convert to createRoot)'],
-    sinon: ['Sinon Imports', '(use Jest)'],
     skipped: ['Skipped Tests', '(fix or remove)'],
     typescript: ['TypeScript Suppressions', ''],
   }
@@ -837,18 +754,6 @@ async function printDashboard() {
 
     const selectedSections = options.sections
     const verbose = options.verbose
-
-    if (selectedSections.length === 0 || selectedSections.includes('string-refs')) {
-      console.log(getSectionTitle('string-refs'))
-      await showReactStringRefStats(verbose)
-      console.log()
-    }
-
-    if (selectedSections.length === 0 || selectedSections.includes('sinon')) {
-      console.log(getSectionTitle('sinon'))
-      await showSinonImportStats(verbose)
-      console.log()
-    }
 
     if (selectedSections.length === 0 || selectedSections.includes('skipped')) {
       console.log(getSectionTitle('skipped'))
@@ -912,7 +817,7 @@ async function printDashboard() {
       console.log()
     }
 
-    if (selectedSections.length === 0 || selectedSections.includes('react-compiler')) {
+    if (selectedSections.includes('react-compiler')) {
       console.log(getSectionTitle('reactCompiler'))
       await showReactCompilerViolationStats(verbose)
     }

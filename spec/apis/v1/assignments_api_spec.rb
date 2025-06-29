@@ -6122,14 +6122,19 @@ describe AssignmentsApiController, type: :request do
             "http://www.example.com/courses/#{@course.id}/discussion_topics/#{@topic.id}",
                                                  "attachments" => [],
                                                  "permissions" => { "attach" => true, "update" => true, "reply" => true, "delete" => true, "manage_assign_to" => true },
-                                                 "discussion_type" => "not_threaded",
+                                                 "discussion_type" => "threaded",
                                                  "group_category_id" => nil,
                                                  "can_group" => true,
                                                  "allow_rating" => false,
                                                  "only_graders_can_rate" => false,
                                                  "sort_by_rating" => false,
                                                  "todo_date" => nil,
-                                                 "anonymous_state" => nil
+                                                 "anonymous_state" => nil,
+                                                 "sort_order" => "desc",
+                                                 "sort_order_locked" => false,
+                                                 "expanded" => false,
+                                                 "expanded_locked" => false,
+
                                                })
       end
 

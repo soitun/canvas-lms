@@ -698,6 +698,7 @@ CanvasRails::Application.routes.draw do
         delete :remove_role
       end
     end
+    get :reports
     get "calendar_settings", action: :account_calendar_settings, as: :calendar_settings
 
     scope(controller: :analytics_hub) do
@@ -1128,10 +1129,14 @@ CanvasRails::Application.routes.draw do
   get "privacy_policy" => "legal_information#privacy_policy", :as => "privacy_policy_redirect"
 
   scope(controller: :career) do
-    get "career/courses/:course_id", action: :catch_all, as: :course_career
-    get "career/courses/:course_id/*path", action: :catch_all, as: :course_career_path
-    get "career/accounts/:account_id", action: :catch_all, as: :account_career
-    get "career/accounts/:account_id/*path", action: :catch_all, as: :account_career_path
+    # Routes for course/account are explicit so that get_context works (relies on :course_id and :account_id params)
+    get "career/courses", action: :show
+    get "career/courses/:course_id", action: :show
+    get "career/courses/:course_id/*path", action: :show
+    get "career/accounts/:account_id", action: :show
+    get "career/accounts/:account_id/*path", action: :show
+    get "career", action: :show, as: :canvas_career
+    get "career/*path", action: :show, as: :canvas_career_path
   end
 
   scope(controller: :smart_search) do
@@ -1286,6 +1291,7 @@ CanvasRails::Application.routes.draw do
       get  "users/:user_id/temporary_enrollment_status", action: :show_temporary_enrollment_status
       get  "accounts/:account_id/enrollments/:id", action: :show, as: "enrollment"
 
+      post "accounts/:account_id/bulk_enrollment", action: :bulk_enrollment, as: "bulk_enrollment"
       post "courses/:course_id/enrollments", action: :create
       post "sections/:section_id/enrollments", action: :create
       post "courses/:course_id/enrollments/:id/accept", action: :accept
@@ -1815,7 +1821,9 @@ CanvasRails::Application.routes.draw do
       get "accounts/:account_id/permissions", action: :permissions
       get "accounts/:account_id/settings", action: :show_settings
       get "manually_created_courses_account", action: :manually_created_courses_account
+      delete "accounts/:account_id/users", action: :remove_users
       delete "accounts/:account_id/users/:user_id", action: :remove_user
+      put "accounts/:account_id/users/bulk_update", action: :update_users
       put "accounts/:account_id/users/:user_id/restore", action: :restore_user
       get "accounts/:account_id/quiz_ip_filters", action: :quiz_ip_filters, as: "quiz_ip_filters"
       get "acceptable_use_policy", action: :acceptable_use_policy
@@ -2831,6 +2839,12 @@ CanvasRails::Application.routes.draw do
       delete "courses/:course_id/block_editor_templates/:id", action: :destroy
       post "courses/:course_id/block_editor_templates/:id/publish", action: :publish
       get "courses/:course_id/block_editor_templates/can_edit", action: :can_edit
+    end
+
+    scope(controller: :career_experience) do
+      get "career/experience_summary", action: :experience_summary
+      post "career/switch_experience", action: :switch_experience
+      post "career/switch_role", action: :switch_role
     end
   end
 

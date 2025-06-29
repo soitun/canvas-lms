@@ -406,8 +406,6 @@ class ApplicationController < ActionController::Base
     dashboard_graphql_integration
     discussion_ai_survey_link
     discussion_checkpoints
-    discussion_default_sort
-    discussion_default_expand
     discussion_permalink
     speedgrader_studio_media_capture
     disallow_threaded_replies_fix_alert
@@ -430,6 +428,7 @@ class ApplicationController < ActionController::Base
     lti_registrations_next
     lti_registrations_page
     lti_registrations_usage_data
+    lti_registrations_usage_tab
     lti_asset_processor
     buttons_and_icons_root_account
     extended_submission_state
@@ -3358,11 +3357,6 @@ class ApplicationController < ActionController::Base
       %r{^/courses/\d+(/assignments|/quizzes|/modules|.?)$}.match?(request.path)
   end
   helper_method :should_show_migration_limitation_message
-
-  def show_migration_text_no_question_warning?
-    !Account.site_admin.feature_enabled?(:hide_quiz_migration_text_no_question_warning)
-  end
-  helper_method :show_migration_text_no_question_warning?
 
   def k5_disabled?
     K5::UserService.new(@current_user, @domain_root_account, @selected_observed_user).k5_disabled?

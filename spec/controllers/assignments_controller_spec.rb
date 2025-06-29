@@ -1233,6 +1233,37 @@ describe AssignmentsController do
             expect(assigns[:js_env][:REVIEWER_SUBMISSION_ID]).to eq @student_submission_id
           end
         end
+
+        it "sets ASSET_REPORTS js_env" do
+          user_session(@student)
+          student_submission = @assignment.submissions.find_by(user: @student)
+          allow_any_instance_of(AssignmentsController).to receive(:asset_reports)
+            .with(submission: student_submission)
+            .and_return([{ id: 1, name: "Report 1" }])
+
+          get "show", params: { course_id: @course.id, id: @assignment.id }
+
+          expect(assigns[:js_env][:ASSET_REPORTS]).to eq([{ id: 1, name: "Report 1" }])
+        end
+
+        it "sets ASSET_PROCESSING js_env" do
+          user_session(@student)
+          allow_any_instance_of(AssignmentsController).to receive(:asset_processors)
+            .with(assignment: @assignment)
+            .and_return([{ id: 50 }])
+
+          get "show", params: { course_id: @course.id, id: @assignment.id }
+
+          expect(assigns[:js_env][:ASSET_PROCESSORS]).to eq([{ id: 50 }])
+        end
+
+        it "sets ASSIGNMENT_NAME js_env" do
+          user_session(@student)
+
+          get "show", params: { course_id: @course.id, id: @assignment.id }
+
+          expect(assigns[:js_env][:ASSIGNMENT_NAME]).to eq(@assignment.title)
+        end
       end
 
       context "when logged in as an observer" do
@@ -2193,6 +2224,7 @@ describe AssignmentsController do
               <p><a class="instructure_file_link auto_open" title="Link" href="/users/#{Shard.short_id_for(@user.id)}/files/#{Shard.short_id_for(@doc1.id)}?wrap=1" target="_blank" rel="noopener" data-canvas-previewable="true">#{@doc1.display_name}</a></p>
             HTML
 
+            @course.saving_user = @user
             @course.update!(syllabus_body:)
 
             get "syllabus", params: { course_id: @course.id }

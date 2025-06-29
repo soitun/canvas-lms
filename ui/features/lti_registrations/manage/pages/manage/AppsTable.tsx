@@ -133,7 +133,7 @@ const Columns: ReadonlyArray<Column> = [
       return window.ENV.FEATURES.lti_registrations_next ? (
         <Link
           as={RouterLink}
-          to={`/manage/${r.id}/configuration`}
+          to={`/manage/${r.id}`}
           isWithinText={false}
           data-testid={`reg-link-${r.id}`}
         >
@@ -242,7 +242,7 @@ const Columns: ReadonlyArray<Column> = [
               data-testid={`actions-menu-${r.id}`}
               withBackground={false}
               withBorder={false}
-              screenReaderLabel={I18n.t('More Registration Options')}
+              screenReaderLabel={I18n.t('More Registration Options for %{name}', {name: r.name})}
             >
               <IconMoreLine />
             </IconButton>
@@ -256,6 +256,8 @@ const Columns: ReadonlyArray<Column> = [
                   showFlashAlert({
                     type: 'info',
                     message: I18n.t('Client ID copied (%{id})', {id: developerKeyId}),
+                    dismissible: false,
+                    politeness: 'polite',
                   })
                 } catch {
                   showFlashAlert({
@@ -263,6 +265,8 @@ const Columns: ReadonlyArray<Column> = [
                     message: I18n.t('There was an issue copying the client ID (%{id})', {
                       id: developerKeyId,
                     }),
+                    dismissible: false,
+                    politeness: 'polite',
                   })
                 }
               }}

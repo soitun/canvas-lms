@@ -297,6 +297,7 @@ export type AttachmentData = Readonly<{
 }>
 
 export type Attachment = {
+  _id: string
   canvadoc_url?: string
   comment_id?: string
   content_type: string
@@ -461,6 +462,7 @@ export type Submission = Readonly<{
   rawGrade: string | null
   submission_comments: SubmissionComment[]
   submitted_at: null | Date
+  // this type is possibly wrong, it should be Record<string, TurnitinAsset>...
   turnitin_data?: TurnitinAsset & {
     // TODO: refactor to separate out the dynamic object
     [key: string]: any

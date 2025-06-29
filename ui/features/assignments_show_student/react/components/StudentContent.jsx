@@ -44,6 +44,7 @@ import {Flex} from '@instructure/ui-flex'
 import {arrayOf, func, bool} from 'prop-types'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {LtiToolIframe} from './LtiToolIframe'
+import DocumentProcessorsSection from './DocumentProcessorsSection'
 
 const I18n = createI18nScope('assignments_2_student_content')
 
@@ -183,9 +184,8 @@ function renderContentBaseOnAvailability(
                 )}
               />
             )}
-
+            <DocumentProcessorsSection submission={submission} />
             <AssignmentToggleDetails description={assignment.description} />
-
             {assignment.rubric && (
               <Suspense fallback={<LoadingIndicator />}>
                 <QueryClientProvider client={queryClient}>

@@ -211,7 +211,7 @@ class Account < ActiveRecord::Base
   validate :validate_help_links, if: ->(a) { a.settings_changed? }
   validate :validate_course_template, if: ->(a) { a.has_attribute?(:course_template_id) && a.course_template_id_changed? }
   validates :account_calendar_subscription_type, inclusion: { in: CALENDAR_SUBSCRIPTION_TYPES }
-
+  validate :validate_number_separators, if: ->(a) { a.settings_changed? && (a.settings.dig(:decimal_separator, :value) != a.settings_was.dig(:decimal_separator, :value) || a.settings.dig(:thousand_separator, :value) != a.settings_was.dig(:thousand_separator, :value)) }
   include StickySisFields
   are_sis_sticky :name, :parent_account_id
 
@@ -886,10 +886,6 @@ class Account < ActiveRecord::Base
 
   def discussion_checkpoints_enabled?
     feature_enabled?(:discussion_checkpoints)
-  end
-
-  def checkpoints_group_discussions_enabled?
-    feature_enabled?(:checkpoints_group_discussions)
   end
 
   def file_namespace
@@ -1814,6 +1810,21 @@ class Account < ActiveRecord::Base
     end
   end
 
+  def validate_number_separators
+    decimal_sep = settings.dig(:decimal_separator, :value)
+    thousand_sep = settings.dig(:thousand_separator, :value)
+
+    if decimal_sep.present? && thousand_sep.blank?
+      errors.add(:thousand_separator_blank, t("Thousand separator cannot be blank if decimal separator is present."))
+    elsif thousand_sep.present? && decimal_sep.blank?
+      errors.add(:decimal_separator_blank, t("Decimal separator cannot be blank if thousand separator is present."))
+    end
+
+    if decimal_sep.present? && thousand_sep.present? && decimal_sep == thousand_sep
+      errors.add(:separators_cannot_be_the_same, t("Decimal and thousand separators cannot be the same."))
+    end
+  end
+
   def no_active_courses
     return true if root_account?
 
@@ -2085,6 +2096,7 @@ class Account < ActiveRecord::Base
   TAB_BRAND_CONFIGS = 20
   TAB_EPORTFOLIO_MODERATION = 21
   TAB_ACCOUNT_CALENDARS = 22
+  TAB_REPORTS = 23
 
   # site admin tabs
   TAB_PLUGINS = 14
@@ -2121,6 +2133,7 @@ class Account < ActiveRecord::Base
       tabs << { id: TAB_COURSES, label: t("#account.tab_courses", "Courses"), css_class: "courses", href: :account_path } if user && grants_right?(user, :read_course_list)
       tabs << { id: TAB_USERS, label: t("People"), css_class: "users", href: :account_users_path } if user && grants_right?(user, :read_roster)
       tabs << { id: TAB_STATISTICS, label: t("#account.tab_statistics", "Statistics"), css_class: "statistics", href: :statistics_account_path } if user && grants_right?(user, :view_statistics)
+      tabs << { id: TAB_REPORTS, label: t("Reports"), css_class: "account_reports", href: :account_reports_path } if feature_enabled?(:new_account_reports_ui) && user && grants_right?(user, :read_reports)
       tabs << { id: TAB_PERMISSIONS, label: t("#account.tab_permissions", "Permissions"), css_class: "permissions", href: :account_permissions_path } if user && grants_right?(user, :manage_role_overrides)
       if user && grants_right?(user, :manage_outcomes)
         tabs << { id: TAB_OUTCOMES, label: t("#account.tab_outcomes", "Outcomes"), css_class: "outcomes", href: :account_outcomes_path }
@@ -2471,13 +2484,14 @@ class Account < ActiveRecord::Base
     Canvadocs.hijack_crocodoc_sessions?
   end
 
-  def update_terms_of_service(terms_params)
+  def update_terms_of_service(terms_params, saving_user = nil)
     terms = TermsOfService.ensure_terms_for_account(self)
     terms.terms_type = terms_params[:terms_type] if terms_params[:terms_type]
     terms.passive = Canvas::Plugin.value_to_boolean(terms_params[:passive]) if terms_params.key?(:passive)
 
     if terms.custom?
       TermsOfServiceContent.ensure_content_for_account(self)
+      terms_of_service_content.saving_user = saving_user
       terms_of_service_content.update_attribute(:content, terms_params[:content]) if terms_params[:content]
     end
 

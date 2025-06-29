@@ -44,7 +44,7 @@ describe('AppsTableInner', () => {
       </BrowserRouter>,
     )
 
-    const kebabMenuIcon = await wrapper.findAllByText('More Registration Options')
+    const kebabMenuIcon = await wrapper.findAllByText('More Registration Options', {exact: false})
     fireEvent.click(kebabMenuIcon[0])
     const deleteButton = await wrapper.findByText('Delete App')
 
@@ -203,7 +203,7 @@ describe('AppsTableInner', () => {
     )
 
     const link = wrapper.getByTestId('reg-link-1')
-    expect(link).toHaveAttribute('href', '/manage/1/configuration')
+    expect(link).toHaveAttribute('href', '/manage/1')
     window.ENV.FEATURES.lti_registrations_next = false
   })
 })

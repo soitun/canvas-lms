@@ -21,6 +21,119 @@ require_relative "../../common"
 
 module Modules2IndexPage
   #------------------------------ Selectors -----------------------------
+
+  def assignments_due_button_selector
+    "[data-testid='assignment-due-this-week-button']"
+  end
+
+  def collapse_all_modules_button_selector
+    "button[aria-label='Collapse All']"
+  end
+
+  def copy_to_button_selector
+    "button:contains('Copy')"
+  end
+
+  def copy_to_tray_course_select_selector
+    "#direct-share-course-select"
+  end
+
+  def course_option_selector(option_list_id, course_name)
+    "#{option_list_options_selector(option_list_id)}:contains(#{course_name})"
+  end
+
+  def edit_item_modal_selector
+    "[data-testid='edit-item-modal']"
+  end
+
+  def expand_all_modules_button_selector
+    "button[aria-label='Expand All']"
+  end
+
+  def manage_module_item_button_selector(module_item_id)
+    "[data-testid='module-item-action-menu_#{module_item_id}']"
+  end
+
+  def manage_module_item_container_selector(module_item_id)
+    "#context_module_item_#{module_item_id}"
+  end
+
+  def missing_assignment_button_selector
+    "[data-testid='missing-assignment-button']"
+  end
+
+  def module_action_menu_selector(module_id)
+    "[data-testid='module-action-menu_#{module_id}']"
+  end
+
+  def module_file_drop_selector(module_id)
+    "[data-module-id='#{module_id}'] [data-testid='module-file-drop']"
+  end
+
+  def module_header_expand_toggle_selector
+    "[data-testid='module-header-expand-toggle']"
+  end
+
+  def module_header_due_date_selector(module_id)
+    "#{module_header_selector(module_id)} [data-testid='friendly-date-time']"
+  end
+
+  def module_header_complete_all_pill_selector(module_id)
+    "#{module_header_selector(module_id)} [data-testid='module-completion-requirement']"
+  end
+
+  def module_header_locked_icon_selector(module_id)
+    "#{module_header_selector(module_id)} [data-testid='module-header-status-icon-lock']"
+  end
+
+  def module_header_missing_pill_selector(module_id)
+    "#{module_header_selector(module_id)} [data-testid='module-header-missing-count']"
+  end
+
+  def module_header_prerequisites_selector(module_id)
+    "#{module_header_selector(module_id)} [data-testid='module-header-prerequisites']"
+  end
+
+  def module_header_selector(module_id)
+    "#context_module_#{module_id}"
+  end
+
+  def module_item_action_menu_link_selector(tool_text)
+    "[role=menuitem]:contains('#{tool_text}')"
+  end
+
+  def module_item_title_selector
+    "[data-testid='module-item-title']"
+  end
+
+  def module_item_action_menu_selector
+    "[data-testid='module-item-action-menu']"
+  end
+
+  def module_progression_status_bar_selector(module_id)
+    "#{module_header_selector(module_id)} [data-testid='module-progression-status-bar']"
+  end
+
+  def module_progression_info_selector(module_id)
+    "#{module_header_selector(module_id)} progress"
+  end
+
+  def option_list_options_selector(option_list_id)
+    "##{option_list_id} [role='option']"
+  end
+
+  def page_body
+    f("body")
+  end
+
+  def send_to_modal_input_selector
+    "#content-share-user-search"
+  end
+
+  def send_to_modal_modal_selector
+    "[data-testid='send-to-item-modal']"
+  end
+
   def student_modules_container_selector
     "[data-testid='modules-rewrite-student-container']"
   end
@@ -29,66 +142,78 @@ module Modules2IndexPage
     "[data-testid='modules-rewrite-container']"
   end
 
-  def manage_module_item_container_selector(module_item_id)
-    "#context_module_item_#{module_item_id}"
-  end
-
-  def module_action_menu_selector(module_id)
-    "[data-testid='module-action-menu_#{module_id}']"
-  end
-
-  def manage_module_item_button_selector(module_item_id)
-    "[data-testid='module-item-action-menu_#{module_item_id}']"
-  end
-
-  def module_item_action_menu_selector
-    "[data-testid='module-item-action-menu']"
-  end
-
-  def module_item_action_menu_link_selector(tool_text)
-    "[role=menuitem]:contains('#{tool_text}')"
-  end
-
-  def edit_item_modal_selector
-    "[data-testid='edit-item-modal']"
-  end
-
-  def send_to_modal_modal_selector
-    "[data-testid='send-to-item-modal']"
-  end
-
-  def send_to_modal_input_selector
-    "#content-share-user-search"
-  end
-
-  def module_header_expand_toggle_selector
-    "[data-testid='module-header-expand-toggle']"
-  end
-
-  def module_item_title_selector
-    "[data-testid='module-item-title']"
-  end
-
-  def page_body
-    f("body")
-  end
-
   #------------------------------ Elements ------------------------------
 
-  def student_modules_container
-    f(student_modules_container_selector)
+  def assignments_due_button
+    f(assignments_due_button_selector)
   end
 
-  def teacher_modules_container
-    f(teacher_modules_container_selector)
+  def collapse_all_modules_button
+    f(collapse_all_modules_button_selector)
+  end
+
+  def copy_button
+    fj(copy_to_button_selector)
+  end
+
+  def copy_to_tray_course_select
+    f(copy_to_tray_course_select_selector)
+  end
+
+  def edit_item_modal
+    f(edit_item_modal_selector)
+  end
+
+  def expand_all_modules_button
+    f(expand_all_modules_button_selector)
+  end
+
+  def manage_module_item_button(module_item_id)
+    f(manage_module_item_button_selector(module_item_id))
+  end
+
+  def manage_module_item_container(module_item_id)
+    f(manage_module_item_container_selector(module_item_id))
+  end
+
+  def missing_assignment_button
+    f(missing_assignment_button_selector)
   end
 
   def module_action_menu(module_id)
     f(module_action_menu_selector(module_id))
   end
 
-  def manage_module_item_button(module_item_id)
-    f(manage_module_item_button_selector(module_item_id))
+  def module_file_drop_element(module_id)
+    f(module_file_drop_selector(module_id))
+  end
+
+  def module_file_drop_element_exists?(module_id)
+    element_exists?(module_file_drop_selector(module_id))
+  end
+
+  def module_header_complete_all_pill(module_id)
+    f(module_header_complete_all_pill_selector(module_id))
+  end
+
+  def module_header_due_date(module_id)
+    f(module_header_due_date_selector(module_id))
+  end
+
+  def module_header_expand_toggles
+    ff(module_header_expand_toggle_selector)
+  end
+
+  def module_header_locked_icon(module_id)
+    f(module_header_locked_icon_selector(module_id))
+  end
+
+  def module_header_missing_pill(module_id)
+    f(module_header_missing_pill_selector(module_id))
+  end
+
+  def module_header_prerequisites(module_id)
+    f(module_header_prerequisites_selector(module_id))
   end
 
   def module_item_action_menu
@@ -99,12 +224,28 @@ module Modules2IndexPage
     fj(module_item_action_menu_link_selector(tool_text))
   end
 
-  def edit_item_modal
-    f(edit_item_modal_selector)
+  def module_item_titles
+    ff(module_item_title_selector)
   end
 
-  def manage_module_item_container(module_item_id)
-    f(manage_module_item_container_selector(module_item_id))
+  def module_progression_status_bar(module_id)
+    f(module_progression_status_bar_selector(module_id))
+  end
+
+  def module_progression_info(module_id)
+    f(module_progression_info_selector(module_id))
+  end
+
+  def option_list(option_list_id)
+    ff(option_list_options_selector(option_list_id))
+  end
+
+  def option_list_course_option(option_list_id, course_name)
+    fj(course_option_selector(option_list_id, course_name))
+  end
+
+  def send_to_form_selected_elements
+    ff("button[type='button']", send_to_modal_input_container)
   end
 
   def send_to_modal
@@ -119,30 +260,54 @@ module Modules2IndexPage
     fxpath("../..", send_to_modal_input)
   end
 
-  def send_to_form_selected_elements
-    ff("button[type='button']", send_to_modal_input_container)
+  def student_modules_container
+    f(student_modules_container_selector)
   end
 
-  def module_header_expand_toggle
-    f(module_header_expand_toggle_selector)
+  def teacher_modules_container
+    f(teacher_modules_container_selector)
   end
 
-  def module_item_title
-    f(module_item_title_selector)
+  def flash_alert
+    f(".flashalert-message")
   end
+
   #------------------------------ Actions -------------------------------
 
-  def set_rewrite_flag(rewrite_status: true)
-    rewrite_status ? @course.root_account.enable_feature!(:modules_page_rewrite) : @course.root_account.disable_feature!(:modules_page_rewrite)
+  def assignments_due_button_exists?
+    element_exists?(assignments_due_button_selector)
   end
 
-  def set_rewrite_student_flag(rewrite_status: true)
-    rewrite_status ? @course.root_account.enable_feature!(:modules_page_rewrite_student_view) : @course.root_account.disable_feature!(:modules_page_rewrite_student_view)
+  def click_assignments_due_button
+    assignments_due_button.click
   end
 
-  def modules2_teacher_setup
-    course_with_teacher(active_all: true)
-    course_modules_setup
+  def course_modules_setup(student_view: false)
+    student_view ? set_rewrite_student_flag : set_rewrite_flag
+    @quiz = @course.quizzes.create!(title: "some quiz")
+    @quiz.publish!
+    @assignment = @course.assignments.create!(title: "assignment 1", submission_types: "online_text_entry")
+    @assignment2 = @course.assignments.create!(title: "assignment 2",
+                                               submission_types: "online_text_entry",
+                                               points_possible: 10)
+    @assignment3 = @course.assignments.create!(title: "assignment 3", submission_types: "online_text_entry")
+
+    @module1 = @course.context_modules.create!(name: "module1")
+    @module2 = @course.context_modules.create!(name: "module2")
+    @module_item1 = @module1.add_item({ id: @assignment.id, type: "assignment" })
+    @module_item2 = @module1.add_item({ id: @assignment2.id, type: "assignment" })
+    @module_item3 = @module2.add_item({ id: @assignment3.id, type: "assignment" })
+    @module_item4 = @module2.add_item({ id: @quiz.id, type: "quiz" })
+
+    @course.reload
+  end
+
+  def missing_assignment_button_exists?
+    element_exists?(missing_assignment_button_selector)
+  end
+
+  def module_header_due_date_exists?(module_id)
+    element_exists?(module_header_due_date_selector(module_id))
   end
 
   def modules2_student_setup
@@ -150,24 +315,21 @@ module Modules2IndexPage
     course_modules_setup(student_view: true)
   end
 
-  def course_modules_setup(student_view: false)
-    student_view ? set_rewrite_student_flag : set_rewrite_flag
-    @quiz = @course.assignments.create!(title: "quiz assignment", submission_types: "online_quiz")
-    @assignment = @course.assignments.create!(title: "assignment 1", submission_types: "online_text_entry")
-    @assignment2 = @course.assignments.create!(title: "assignment 2",
-                                               submission_types: "online_text_entry",
-                                               due_at: 2.days.from_now,
-                                               points_possible: 10)
-    @assignment3 = @course.assignments.create!(title: "assignment 3", submission_types: "online_text_entry")
+  def modules2_teacher_setup
+    course_with_teacher(active_all: true)
+    course_modules_setup
+  end
 
-    @module1 = @course.context_modules.create!(name: "module1")
-    @module2 = @course.context_modules.create!(name: "module2")
-    @module1.add_item({ id: @assignment.id, type: "assignment" })
-    @module1.add_item({ id: @assignment2.id, type: "assignment" })
-    @module2.add_item({ id: @assignment3.id, type: "assignment" })
-    @module2.add_item({ id: @quiz.id, type: "quiz" })
+  def module_progression_info_text(module_id)
+    element_value_for_attr(module_progression_info(module_id), "aria-valuetext")
+  end
 
-    @course.reload
+  def set_rewrite_flag(rewrite_status: true)
+    rewrite_status ? @course.root_account.enable_feature!(:modules_page_rewrite) : @course.root_account.disable_feature!(:modules_page_rewrite)
+  end
+
+  def set_rewrite_student_flag(rewrite_status: true)
+    rewrite_status ? @course.root_account.enable_feature!(:modules_page_rewrite_student_view) : @course.root_account.disable_feature!(:modules_page_rewrite_student_view)
   end
 
   def visit_course(course)

@@ -132,6 +132,172 @@ describe AccountsController do
         expect(@user.associated_accounts.map(&:id)).to_not include(@account.id)
       end
     end
+
+    describe "bulk user removal" do
+      before :once do
+        @account.enable_feature!(:horizon_bulk_api_permission)
+      end
+
+      it "removes multiple users from the account" do
+        course_factory(active_all: true)
+
+        account_admin_user
+        user_session(@admin)
+
+        @u1 = User.create!(name: "Alice")
+        @u2 = User.create!(name: "Bob")
+        @u3 = User.create!(name: "Clement")
+        @account.account_users.create(user: @u1)
+        @account.account_users.create(user: @u2)
+        @account.account_users.create(user: @u3)
+
+        delete "remove_users", params: { account_id: @account.id, user_ids: [@u1.id, @u2.id] }
+
+        expect(response).to be_successful
+        response_body = json_parse(response.body)
+
+        progress = Progress.find(response_body["id"])
+        expect(progress.workflow_state).to eq "queued"
+        expect(@account.users.size).to eq 5
+        run_jobs
+        expect(@account.users.size).to eq 3
+        expect(progress.reload.workflow_state).to eq "completed"
+      end
+
+      it "return 403 if feature flag is turned off" do
+        @account.disable_feature!(:horizon_bulk_api_permission)
+        user_session(@admin)
+
+        delete "remove_users", params: { account_id: @account.id, user_ids: [5, 6] }
+
+        expect(response).to be_unauthorized
+      end
+
+      it "blocks role without correct permissions" do
+        course_with_teacher_logged_in(active_all: true)
+
+        delete "remove_users", params: { account_id: @account.id, user_ids: [5, 6] }
+
+        expect(response).to be_unauthorized
+      end
+
+      it "explicitly removes user permission for admin" do
+        account_admin_user_with_role_changes(account: @account, role_changes: { manage_users_in_bulk: false })
+
+        delete "remove_users", params: { account_id: @account.id, user_ids: [5, 6] }
+
+        expect(response).to be_unauthorized
+      end
+
+      it "collects errors for nonexistent users" do
+        course_factory(active_all: true)
+
+        account_admin_user
+        user_session(@admin)
+
+        @u1 = User.create!(name: "Alice")
+        @u2 = User.create!(name: "Bob")
+        @u3 = User.create!(name: "Clement")
+        @account.account_users.create(user: @u1)
+        @account.account_users.create(user: @u2)
+        @account.account_users.create(user: @u3)
+
+        delete "remove_users", params: { account_id: @account.id, user_ids: [@u1.id, 9999] }
+
+        expect(response).to be_successful
+        response_body = json_parse(response.body)
+
+        progress = Progress.find(response_body["id"])
+        expect(progress.workflow_state).to eq "queued"
+        run_jobs
+        expect(progress.reload.workflow_state).to eq "completed"
+        expect(progress.results[:errors]).to have_key("9999")
+        expect(@account.reload.users.find_by(name: "Alice")).to be_nil
+        expect(@account.reload.users.find_by(name: "Bob")).to_not be_nil
+      end
+    end
+
+    describe "user bulk edit" do
+      before :once do
+        @account.enable_feature!(:horizon_bulk_api_permission)
+        @u1 = user_with_pseudonym(account: @account, name: "Alice", workflow_state: "active")
+        @u2 = user_with_pseudonym(account: @account, name: "Bob", workflow_state: "active")
+        @u3 = user_with_pseudonym(account: @account, name: "Clement", workflow_state: "active")
+        @account.account_users.create(user: @u1)
+        @account.account_users.create(user: @u2)
+        @account.account_users.create(user: @u3)
+        @account = Account.default
+      end
+
+      it "return 403 if feature flag is turned off" do
+        @account.disable_feature!(:horizon_bulk_api_permission)
+        user_session(@admin)
+        put :update_users, params: { account_id: @account.id, user_ids: [@u1.id, @u2.id], user: { event: "suspend" } }, format: :json
+        expect(response).to be_forbidden
+      end
+
+      it "suspends multiple users" do
+        user_session(@admin)
+        put :update_users, params: { account_id: @account.id, user_ids: [@u1.id, @u2.id], user: { event: "suspend" } }, format: :json
+        expect(response).to be_successful
+        response_body = json_parse(response.body)
+        progress = Progress.find(response_body["id"])
+        expect(progress.workflow_state).to eq "queued"
+        run_jobs
+        progress.reload
+        expect(progress.workflow_state).to eq "completed"
+        expect(@u1.pseudonym.reload).to be_suspended
+        expect(@u2.pseudonym.reload).to be_suspended
+      end
+
+      it "unsuspends multiple users" do
+        user_session(@admin)
+        put :update_users, params: { account_id: @account.id, user_ids: [@u1.id, @u2.id], user: { event: "suspend" } }, format: :json
+        expect(response).to be_successful
+        response_body = json_parse(response.body)
+        progress = Progress.find(response_body["id"])
+        expect(progress.workflow_state).to eq "queued"
+        run_jobs
+        progress.reload
+        expect(progress.workflow_state).to eq "completed"
+        expect(@u1.pseudonym.reload).to be_suspended
+        expect(@u2.pseudonym.reload).to be_suspended
+
+        put :update_users, params: { account_id: @account.id, user_ids: [@u1.id, @u2.id], user: { event: "unsuspend" } }, format: :json
+        run_jobs
+        expect(@u1.pseudonym.reload).to be_active
+        expect(@u2.pseudonym.reload).to be_active
+      end
+
+      it "returns an error for non-existent users" do
+        user_session(@admin)
+        put :update_users, params: { account_id: @account.id, user_ids: [@u1.id, 9999], user: { event: "suspend" } }, format: :json
+        expect(response).to be_successful
+        response_body = json_parse(response.body)
+        progress = Progress.find(response_body["id"])
+        expect(progress.workflow_state).to eq "queued"
+        run_jobs
+        progress.reload
+        expect(progress.workflow_state).to eq "completed"
+        expect(progress.results[:errors]).to have_key("9999")
+        expect(@u1.pseudonym.reload).to be_suspended
+      end
+
+      it "does not fail if one of the users are not found" do
+        user_session(@admin)
+        put :update_users, params: { account_id: @account.id, user_ids: [@u1, 9999, @u3], user: { event: "suspend" } }, format: :json
+        expect(response).to be_successful
+        response_body = json_parse(response.body)
+        progress = Progress.find(response_body["id"])
+        expect(progress.workflow_state).to eq "queued"
+        run_jobs
+        progress.reload
+        expect(progress.workflow_state).to eq "completed"
+        expect(progress.results[:errors]).to have_key("9999")
+        expect(@u1.pseudonym.reload).to be_suspended
+        expect(@u3.pseudonym.reload).to be_suspended
+      end
+    end
   end
 
   context "restore_user" do
@@ -1319,10 +1485,34 @@ describe AccountsController do
       c1.save
     end
 
-    it "returns the terms of service content" do
-      @account.update_terms_of_service(terms_type: "custom", content: "custom content")
-
+    it "manages the attachment associations when an attachment is added" do
       admin_logged_in(@account)
+      aa_test_data = AttachmentAssociationsSpecHelper.new(@account, @user)
+
+      @account.update_terms_of_service({ terms_type: "custom", content: aa_test_data.base_html }, @user)
+
+      aas = AttachmentAssociation.where(context_type: "TermsOfServiceContent",
+                                        context_id: @account.terms_of_service_content.id)
+      expect(aas.count).to eq 1
+      expect(aas.first.attachment_id).to eq aa_test_data.attachment1.id
+    end
+
+    it "removes the attachment associations when an attachment is removed" do
+      admin_logged_in(@account)
+      aa_test_data = AttachmentAssociationsSpecHelper.new(@account, @user)
+
+      @account.update_terms_of_service({ terms_type: "custom", content: aa_test_data.added_html }, @user)
+      @account.update_terms_of_service({ terms_type: "custom", content: aa_test_data.removed_html }, @user)
+
+      aas = AttachmentAssociation.where(context_type: "TermsOfServiceContent",
+                                        context_id: @account.terms_of_service_content.id)
+      expect(aas.count).to eq 0
+    end
+
+    it "returns the terms of service content" do
+      admin_logged_in(@account)
+      @account.update_terms_of_service({ terms_type: "custom", content: "custom content" }, @user)
+
       get "terms_of_service", params: { account_id: @account.id }
 
       expect(response).to be_successful
@@ -1330,9 +1520,9 @@ describe AccountsController do
     end
 
     it "returns the terms of service content as teacher" do
-      @account.update_terms_of_service(terms_type: "custom", content: "custom content")
-
       user_session(@teacher)
+      @account.update_terms_of_service({ terms_type: "custom", content: "custom content" }, @teacher)
+
       get "terms_of_service", params: { account_id: @account.id }
 
       expect(response).to be_successful
@@ -1340,9 +1530,9 @@ describe AccountsController do
     end
 
     it "returns the terms of service content as student" do
-      @account.update_terms_of_service(terms_type: "custom", content: "custom content")
-
       user_session(@student)
+      @account.update_terms_of_service({ terms_type: "custom", content: "custom content" }, @student)
+
       get "terms_of_service", params: { account_id: @account.id }
 
       expect(response).to be_successful
@@ -1350,7 +1540,7 @@ describe AccountsController do
     end
 
     it "returns default self_registration_type" do
-      @account.update_terms_of_service(terms_type: "custom", content: "custom content")
+      @account.update_terms_of_service({ terms_type: "custom", content: "custom content" }, @teacher)
 
       remove_user_session
       get "terms_of_service", params: { account_id: @account.id }
@@ -1360,7 +1550,8 @@ describe AccountsController do
     end
 
     it "returns other self_registration_type" do
-      @account.update_terms_of_service(terms_type: "custom", content: "custom content")
+      user_session(@teacher)
+      @account.update_terms_of_service({ terms_type: "custom", content: "custom content" }, @teacher)
       @account.canvas_authentication_provider.update_attribute(:self_registration, "observer")
 
       remove_user_session

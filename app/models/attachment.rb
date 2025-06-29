@@ -133,7 +133,7 @@ class Attachment < ActiveRecord::Base
   has_one :estimated_duration, dependent: :destroy, inverse_of: :attachment
   has_many :lti_assets, class_name: "Lti::Asset", inverse_of: :attachment, dependent: :destroy
 
-  before_save :set_root_account
+  before_validation :set_root_account
   before_save :infer_display_name
   before_save :truncate_display_name
   before_save :default_values
@@ -1007,8 +1007,13 @@ class Attachment < ActiveRecord::Base
       (content_type == "text/css" && size < CSS_MAX_PROXY_SIZE)
   end
 
-  def local_storage_path
-    "#{HostUrl.context_host(context)}#{context_path_prefix_for(context:)}/files/#{id}/download?verifier=#{uuid}"
+  def local_storage_path(user: nil, ttl: nil)
+    verifier_string = if root_account.feature_enabled?(:file_association_access)
+                        Attachments::Verification.new(self).verifier_for_user(user, expires: ttl || 1.hour.from_now)
+                      else
+                        uuid
+                      end
+    "#{HostUrl.context_host(context)}#{context_path_prefix_for(context:)}/files/#{id}/download?verifier=#{verifier_string}"
   end
 
   def context_path_prefix_for(context:)
@@ -1838,25 +1843,13 @@ class Attachment < ActiveRecord::Base
     end
   end
 
-  # after replacing this file's instfs_uuid, delete the old file if it's not being used by any other Attachments
-  def safe_delete_overwritten_instfs_uuid(instfs_uuid)
-    raise ArgumentError, "instfs_uuid not overwritten" if self.instfs_uuid == instfs_uuid
-
-    if cloned_item_id.present?
-      # we can't delete the old file since it's used by other attachments;
-      # however, this one isn't using it anymore so we should detach from the clone group
-      update!(cloned_item_id: nil)
-      return
-    end
+  # if we reused this Attachment when an identical file was re-uploaded, delete the unused instfs_uuid
+  def safe_delete_unused_instfs_uuid(instfs_uuid)
+    raise ArgumentError, "instfs_uuid in use" if self.instfs_uuid == instfs_uuid
 
     shard.activate do
-      # any linked Canvadoc retains the old instfs_uuid, and deleting it would break re-rendering
-      return if Canvadoc.where(attachment_id: self).exists?
-
       # double-check that no other attachments are using this instfs_uuid
-      return if Attachment.where(instfs_uuid:).exists?
-
-      InstFS.delete_file(instfs_uuid)
+      InstFS.delete_file(instfs_uuid) unless Attachment.where(instfs_uuid:).exists?
     end
   end
 

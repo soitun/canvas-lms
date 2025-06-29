@@ -29,7 +29,11 @@ import {useInfiniteQuery} from '@tanstack/react-query'
 import * as React from 'react'
 import {useOutletContext} from 'react-router-dom'
 import {RenderInfiniteApiResult} from '../../../../common/lib/apiResult/RenderInfiniteApiResult'
-import {fetchControlsByDeployment} from '../../../api/contextControls'
+import {
+  DeleteContextControl,
+  FetchControlsByDeployment,
+  UpdateContextControl,
+} from '../../../api/contextControls'
 import {createDeployment} from '../../../api/deployments'
 import {AccountId} from '../../../model/AccountId'
 import {LtiRegistrationId} from '../../../model/LtiRegistrationId'
@@ -41,7 +45,9 @@ import {Flex} from '@instructure/ui-flex'
 const I18n = createI18nScope('lti_registrations')
 
 export type ToolAvailabilityProps = {
-  fetchControlsByDeployment: typeof fetchControlsByDeployment
+  fetchControlsByDeployment: FetchControlsByDeployment
+  deleteContextControl: DeleteContextControl
+  editContextControl: UpdateContextControl
   accountId: AccountId
 }
 
@@ -126,6 +132,8 @@ export const ToolAvailability = (props: ToolAvailabilityProps) => {
                       deployment={dep}
                       registration={registration}
                       refetchControls={controlsQuery.refetch}
+                      deleteControl={props.deleteContextControl}
+                      editControl={props.editContextControl}
                       debug={debug}
                     />
                   </List.Item>

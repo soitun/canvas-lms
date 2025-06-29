@@ -30,6 +30,9 @@ const COURSE_STUDENT_QUERY = gql`
           missingSubmissionsCount
           submissionsDueThisWeekCount
         }
+        settings {
+          showStudentOnlyModuleId
+        }
       }
     }
   }
@@ -47,6 +50,7 @@ async function getCourseStudent(courseId: string): Promise<CourseStudentResponse
   return {
     name: result.legacyNode?.name,
     submissionStatistics: result.legacyNode?.submissionStatistics,
+    settings: result.legacyNode?.settings,
   }
 }
 

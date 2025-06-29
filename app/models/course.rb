@@ -31,6 +31,7 @@ class Course < ActiveRecord::Base
   include OutcomeImportContext
   include MaterialChanges
   include CopiedAssets
+  include LinkedAttachmentHandler
 
   attr_accessor :teacher_names, :master_course, :primary_enrollment_role, :saved_by
   attr_writer :student_count, :teacher_count, :primary_enrollment_type, :primary_enrollment_role_id, :primary_enrollment_rank, :primary_enrollment_state, :primary_enrollment_date, :invitation, :master_migration
@@ -1556,6 +1557,14 @@ class Course < ActiveRecord::Base
     end
   end
 
+  def self.html_fields
+    %w[syllabus_body].freeze
+  end
+
+  def attachment_associations_enabled?
+    root_account.feature_enabled?(:disable_file_verifiers_in_public_syllabus)
+  end
+
   def home_page
     wiki.front_page
   end
@@ -1577,10 +1586,6 @@ class Course < ActiveRecord::Base
 
   def discussion_checkpoints_enabled?
     account&.discussion_checkpoints_enabled?
-  end
-
-  def checkpoints_group_discussions_enabled?
-    account&.checkpoints_group_discussions_enabled?
   end
 
   def wiki
@@ -4261,7 +4266,7 @@ class Course < ActiveRecord::Base
   end
 
   def self.preload_menu_data_for(courses, user, preload_favorites: false)
-    ActiveRecord::Associations.preload(courses, :enrollment_term)
+    ActiveRecord::Associations.preload(courses, [:enrollment_term, :wiki])
     # preload favorites and nicknames
     favorite_ids = preload_favorites && user.favorite_context_ids("Course")
     nicknames = user.all_course_nicknames(courses)

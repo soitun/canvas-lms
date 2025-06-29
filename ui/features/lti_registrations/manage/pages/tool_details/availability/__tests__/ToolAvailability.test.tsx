@@ -16,10 +16,11 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {fireEvent, waitFor} from '@testing-library/react'
+import {fireEvent, screen, waitFor} from '@testing-library/react'
 import {success} from '../../../../../common/lib/apiResult/ApiResult'
 import {FetchControlsByDeployment} from '../../../../api/contextControls'
 import {ZAccountId} from '../../../../model/AccountId'
+import {ZCourseId} from '../../../../model/CourseId'
 import {ZLtiContextControlId} from '../../../../model/LtiContextControl'
 import {ZLtiDeploymentId} from '../../../../model/LtiDeploymentId'
 import {ZLtiRegistrationId} from '../../../../model/LtiRegistrationId'
@@ -67,8 +68,10 @@ describe('ToolAvailability', () => {
     const accountId = ZAccountId.parse('1')
     const screen = renderAppWithRegistration(reg)(
       <ToolAvailability
+        editContextControl={jest.fn()}
         accountId={accountId}
         fetchControlsByDeployment={fetchControlsByDeployment}
+        deleteContextControl={jest.fn()}
       />,
     )
     expect(fetchControlsByDeployment).toHaveBeenCalled()
@@ -98,8 +101,10 @@ describe('ToolAvailability', () => {
 
     const screen = renderAppWithRegistration(reg)(
       <ToolAvailability
+        editContextControl={jest.fn()}
         accountId={ZAccountId.parse('1')}
         fetchControlsByDeployment={jest.fn().mockResolvedValue(success(deployments))}
+        deleteContextControl={jest.fn()}
       />,
     )
     await screen.findByText('Installed in Test Account')
@@ -125,8 +130,10 @@ describe('ToolAvailability', () => {
       })
     const utils = renderAppWithRegistration(reg)(
       <ToolAvailability
+        editContextControl={jest.fn()}
         accountId={ZAccountId.parse('1')}
         fetchControlsByDeployment={fetchControlsByDeployment}
+        deleteContextControl={jest.fn()}
       />,
     )
 
@@ -166,5 +173,500 @@ describe('ToolAvailability', () => {
     } else {
       throw new Error('Show More button not found')
     }
+  })
+
+  describe('editing exceptions', () => {
+    it('lets users edit a sub-account level exception', async () => {
+      const mockEdit = jest.fn().mockResolvedValue(success({}))
+
+      const reg = mockRegistrationWithAllInformation({
+        n: 'Test App',
+        i: 1,
+      })
+      const deployment = mockDeployment({
+        context_name: 'Test Account',
+        context_controls: [
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-1'),
+            context_name: 'Account 2',
+            path: 'a2',
+            account_id: ZAccountId.parse('2'),
+            available: false,
+            child_control_count: 30,
+          }),
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-2'),
+            context_name: 'CC-1-2',
+            path: 'a2.a3',
+            account_id: ZAccountId.parse('3'),
+            available: false,
+            course_count: 15,
+            subaccount_count: 5,
+          }),
+        ],
+      })
+      const fetchControlsByDeployment = jest.fn().mockResolvedValue(success([deployment]))
+      renderAppWithRegistration(reg)(
+        <ToolAvailability
+          editContextControl={mockEdit}
+          accountId={ZAccountId.parse('1')}
+          fetchControlsByDeployment={fetchControlsByDeployment}
+          deleteContextControl={jest.fn()}
+        />,
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('Deployment ID: default-deployment-id')).toBeInTheDocument()
+      })
+
+      const control = deployment.context_controls[1]
+
+      fireEvent.click(document.getElementById(`edit-exception-${control.id}`)!)
+
+      expect(await screen.findByText('Edit Exception')).toBeInTheDocument()
+
+      expect(
+        screen.getByText(/This change will affect 5 child sub-accounts and 15 child courses/i),
+      ).toBeInTheDocument()
+      expect(screen.getByText('Exception to be edited:')).toBeInTheDocument()
+
+      expect(screen.getAllByText('Not Available')).toHaveLength(4)
+
+      const selector = screen.getByRole('combobox')
+      fireEvent.click(selector)
+      fireEvent.click(screen.getByRole('option', {name: 'Available'}))
+
+      fireEvent.click(document.getElementById('update-exception-modal-button')!)
+
+      await waitFor(() => {
+        expect(mockEdit).toHaveBeenCalledWith(deployment.registration_id, control.id, true)
+        expect(fetchControlsByDeployment).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    it('lets users close the modal without saving changes', async () => {
+      const mockEdit = jest.fn().mockResolvedValue(success({}))
+
+      const reg = mockRegistrationWithAllInformation({
+        n: 'Test App',
+        i: 1,
+      })
+      const deployment = mockDeployment({
+        context_name: 'Test Account',
+        context_controls: [
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-1'),
+            context_name: 'Account 2',
+            path: 'a2',
+            account_id: ZAccountId.parse('2'),
+            available: false,
+            child_control_count: 30,
+          }),
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-2'),
+            context_name: 'CC-1-2',
+            path: 'a2.a3',
+            account_id: ZAccountId.parse('3'),
+            available: false,
+            course_count: 15,
+            subaccount_count: 5,
+          }),
+        ],
+      })
+      const fetchControlsByDeployment = jest.fn().mockResolvedValue(success([deployment]))
+      renderAppWithRegistration(reg)(
+        <ToolAvailability
+          editContextControl={mockEdit}
+          accountId={ZAccountId.parse('1')}
+          fetchControlsByDeployment={fetchControlsByDeployment}
+          deleteContextControl={jest.fn()}
+        />,
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('Deployment ID: default-deployment-id')).toBeInTheDocument()
+      })
+
+      const control = deployment.context_controls[1]
+
+      fireEvent.click(document.getElementById(`edit-exception-${control.id}`)!)
+
+      expect(await screen.findByText('Edit Exception')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('Cancel'))
+
+      await waitFor(() => expect(screen.queryByText('Edit Exception')).not.toBeInTheDocument())
+
+      expect(mockEdit).not.toHaveBeenCalled()
+    })
+
+    it('lets users edit a course level exception', async () => {
+      const mockEdit = jest.fn().mockResolvedValue(success({}))
+
+      const reg = mockRegistrationWithAllInformation({
+        n: 'Test App',
+        i: 1,
+      })
+      const deployment = mockDeployment({
+        context_name: 'Test Account',
+        context_controls: [
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-1'),
+            context_name: 'Account 2',
+            path: 'a2',
+            account_id: ZAccountId.parse('2'),
+            available: true,
+          }),
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-course-1'),
+            context_name: 'Test Course 101',
+            path: 'a2.c10',
+            course_id: ZCourseId.parse('10'),
+            available: false,
+            child_control_count: 0,
+          }),
+        ],
+      })
+      const fetchControlsByDeployment = jest.fn().mockResolvedValue(success([deployment]))
+      renderAppWithRegistration(reg)(
+        <ToolAvailability
+          editContextControl={mockEdit}
+          accountId={ZAccountId.parse('1')}
+          fetchControlsByDeployment={fetchControlsByDeployment}
+          deleteContextControl={jest.fn()}
+        />,
+      )
+
+      await waitFor(() =>
+        expect(screen.getByText('Deployment ID: default-deployment-id')).toBeInTheDocument(),
+      )
+
+      const control = deployment.context_controls[1]
+
+      fireEvent.click(document.getElementById(`edit-exception-${control.id}`)!)
+
+      expect(await screen.findByText('Edit Exception')).toBeInTheDocument()
+
+      expect(screen.getByText('This change will affect 1 course')).toBeInTheDocument()
+
+      const selector = screen.getByRole('combobox')
+      fireEvent.click(selector)
+      // Good luck finding something other than get by role to get this
+      fireEvent.click(screen.getByRole('option', {name: /^available/i}))
+
+      fireEvent.click(document.getElementById('update-exception-modal-button')!)
+
+      await waitFor(() => {
+        expect(mockEdit).toHaveBeenCalledWith(deployment.registration_id, control.id, true)
+        expect(fetchControlsByDeployment).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    it('lets users edit the root level exception', async () => {
+      const mockEdit = jest.fn().mockResolvedValue(success({}))
+
+      const reg = mockRegistrationWithAllInformation({
+        n: 'Test App',
+        i: 1,
+      })
+
+      const rootControl = mockContextControl({
+        id: ZLtiContextControlId.parse('cc-root'),
+        context_name: 'Root Account',
+        path: 'a1',
+        account_id: ZAccountId.parse('1'),
+        available: true,
+        child_control_count: 50,
+        course_count: 25,
+        subaccount_count: 15,
+      })
+
+      const deployment = mockDeployment({
+        context_name: 'Root Account',
+        context_id: '1',
+        context_type: 'Account',
+        context_controls: [rootControl],
+      })
+
+      const fetchControlsByDeployment = jest.fn().mockResolvedValue(success([deployment]))
+      renderAppWithRegistration(reg)(
+        <ToolAvailability
+          editContextControl={mockEdit}
+          accountId={ZAccountId.parse('1')}
+          fetchControlsByDeployment={fetchControlsByDeployment}
+          deleteContextControl={jest.fn()}
+        />,
+      )
+
+      await waitFor(() =>
+        expect(screen.getByText('Deployment ID: default-deployment-id')).toBeInTheDocument(),
+      )
+
+      fireEvent.click(document.getElementById(`edit-exception-${rootControl.id}`)!)
+
+      expect(await screen.findByText('Edit Exception')).toBeInTheDocument()
+
+      expect(
+        screen.getByText(/This change will affect 15 child sub-accounts and 25 child courses/i),
+      ).toBeInTheDocument()
+
+      const selector = screen.getByRole('combobox')
+      fireEvent.click(selector)
+      fireEvent.click(screen.getByRole('option', {name: /^not available/i}))
+
+      fireEvent.click(document.getElementById('update-exception-modal-button')!)
+
+      await waitFor(() => {
+        expect(mockEdit).toHaveBeenCalledWith(deployment.registration_id, rootControl.id, false)
+        expect(fetchControlsByDeployment).toHaveBeenCalledTimes(2)
+      })
+    })
+  })
+
+  describe('deleting exceptions', () => {
+    it('lets users delete a sub-account level exception', async () => {
+      const mockDelete = jest.fn().mockResolvedValue(success({}))
+
+      const reg = mockRegistrationWithAllInformation({
+        n: 'Test App',
+        i: 1,
+      })
+      const deployment = mockDeployment({
+        context_name: 'Test Account',
+        context_controls: [
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-1'),
+            context_name: 'CC-1-1',
+            path: 'a2',
+            account_id: ZAccountId.parse('2'),
+            child_control_count: 400,
+          }),
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-2'),
+            context_name: 'CC-1-2',
+            path: 'a2.a3',
+            account_id: ZAccountId.parse('3'),
+            child_control_count: 399,
+          }),
+        ],
+      })
+      const fetchControlsByDeployment = jest.fn().mockResolvedValue(success([deployment]))
+      renderAppWithRegistration(reg)(
+        <ToolAvailability
+          editContextControl={jest.fn()}
+          accountId={ZAccountId.parse('1')}
+          fetchControlsByDeployment={fetchControlsByDeployment}
+          deleteContextControl={mockDelete}
+        />,
+      )
+
+      // Now wait for the main content to appear
+      await waitFor(
+        () => {
+          expect(screen.getByText('Deployment ID: default-deployment-id')).toBeInTheDocument()
+        },
+        {timeout: 2000},
+      )
+
+      const control = deployment.context_controls[0]
+
+      fireEvent.click(document.getElementById(`delete-exception-${control.id}`)!)
+
+      expect(await screen.findByText(/Exceptions to be deleted/i)).toBeInTheDocument()
+
+      expect(screen.getAllByText(/Not Available/i)).toHaveLength(2)
+      expect(
+        screen.getByText(
+          /After this change, Test App will be for the cc-1-1 sub-account and its children/i,
+        ),
+      ).toBeInTheDocument()
+      expect(screen.getByText(/399 additional exceptions not shown/i)).toBeInTheDocument()
+
+      fireEvent.click(document.getElementById('delete-exception-modal-button')!)
+
+      await waitFor(() => {
+        expect(mockDelete).toHaveBeenCalledWith(deployment.registration_id, control.id)
+        expect(fetchControlsByDeployment).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    it('lets users cancel a sub-account level exception deletion', async () => {
+      const mockDelete = jest.fn().mockResolvedValue(success({}))
+
+      const reg = mockRegistrationWithAllInformation({
+        n: 'Test App',
+        i: 1,
+      })
+      const deployment = mockDeployment({
+        context_name: 'Test Account',
+        context_controls: [
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-1'),
+            context_name: 'CC-1-1',
+            path: 'a2',
+            account_id: ZAccountId.parse('2'),
+            child_control_count: 400,
+          }),
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-2'),
+            context_name: 'CC-1-2',
+            path: 'a2.a3',
+            account_id: ZAccountId.parse('3'),
+            child_control_count: 399,
+          }),
+        ],
+      })
+      const fetchControlsByDeployment = jest.fn().mockResolvedValue(success([deployment]))
+      renderAppWithRegistration(reg)(
+        <ToolAvailability
+          editContextControl={jest.fn()}
+          accountId={ZAccountId.parse('1')}
+          fetchControlsByDeployment={fetchControlsByDeployment}
+          deleteContextControl={mockDelete}
+        />,
+      )
+
+      await waitFor(() =>
+        expect(screen.getByText('Deployment ID: default-deployment-id')).toBeInTheDocument(),
+      )
+
+      const control = deployment.context_controls[0]
+
+      fireEvent.click(document.getElementById(`delete-exception-${control.id}`)!)
+
+      expect(await screen.findByText(/Exceptions to be deleted/i)).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', {name: 'Cancel'}))
+
+      await waitFor(() => {
+        expect(screen.queryByText(/Exceptions to be deleted/i)).not.toBeInTheDocument()
+      })
+    })
+
+    it('lets users delete a course level exception', async () => {
+      const mockDelete = jest.fn().mockResolvedValue(success({}))
+
+      const reg = mockRegistrationWithAllInformation({
+        n: 'Test App',
+        i: 1,
+      })
+      const deployment = mockDeployment({
+        context_name: 'Test Account',
+        context_controls: [
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-2'),
+            context_name: 'Account 2',
+            path: 'a2',
+            account_id: ZAccountId.parse('2'),
+            available: true,
+          }),
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-course-1'),
+            context_name: 'Test Course 101',
+            path: 'a2.c10',
+            course_id: ZCourseId.parse('10'),
+            available: false,
+            child_control_count: 0,
+          }),
+        ],
+      })
+      const fetchControlsByDeployment = jest.fn().mockResolvedValue(success([deployment]))
+      renderAppWithRegistration(reg)(
+        <ToolAvailability
+          editContextControl={jest.fn()}
+          accountId={ZAccountId.parse('1')}
+          fetchControlsByDeployment={fetchControlsByDeployment}
+          deleteContextControl={mockDelete}
+        />,
+      )
+
+      // Wait for the main content to appear
+      await waitFor(() =>
+        expect(screen.getByText('Deployment ID: default-deployment-id')).toBeInTheDocument(),
+      )
+
+      const control = deployment.context_controls[1]
+
+      fireEvent.click(document.getElementById(`delete-exception-${control.id}`)!)
+
+      expect(await screen.findByText(/exception to be deleted/i)).toBeInTheDocument()
+
+      expect(screen.getByText('Exception to be deleted:')).toBeInTheDocument()
+      expect(
+        screen.getByText(/After this change, Test App will be for the Test Course 101 course./i),
+      ).toBeInTheDocument()
+      expect(screen.getAllByText(/not available/i)).toHaveLength(3)
+      expect(screen.getByText(/Available/i, {selector: 'strong'})).toBeInTheDocument()
+
+      expect(screen.getByRole('button', {name: 'Cancel'})).toBeInTheDocument()
+      const deleteButton = document.getElementById('delete-exception-modal-button')!
+      expect(deleteButton).toBeInTheDocument()
+
+      fireEvent.click(deleteButton)
+      await waitFor(() => {
+        expect(mockDelete).toHaveBeenCalledWith(deployment.registration_id, control.id)
+        expect(fetchControlsByDeployment).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    it('lets users cancel deleting a course level exception deletion', async () => {
+      const mockDelete = jest.fn().mockResolvedValue(success({}))
+
+      const reg = mockRegistrationWithAllInformation({
+        n: 'Test App',
+        i: 1,
+      })
+      const deployment = mockDeployment({
+        context_name: 'Test Account',
+        context_controls: [
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-1-2'),
+            context_name: 'Account 2',
+            path: 'a2',
+            account_id: ZAccountId.parse('2'),
+            available: true,
+          }),
+          mockContextControl({
+            id: ZLtiContextControlId.parse('cc-course-1'),
+            context_name: 'Test Course 101',
+            path: 'a2.c10',
+            course_id: ZCourseId.parse('10'),
+            available: false,
+            child_control_count: 0,
+          }),
+        ],
+      })
+      const fetchControlsByDeployment = jest.fn().mockResolvedValue(success([deployment]))
+      renderAppWithRegistration(reg)(
+        <ToolAvailability
+          editContextControl={jest.fn()}
+          accountId={ZAccountId.parse('1')}
+          fetchControlsByDeployment={fetchControlsByDeployment}
+          deleteContextControl={mockDelete}
+        />,
+      )
+
+      // Wait for the main content to appear
+      await waitFor(
+        () => {
+          expect(screen.getByText('Deployment ID: default-deployment-id')).toBeInTheDocument()
+        },
+        {timeout: 2000},
+      )
+
+      const control = deployment.context_controls[1]
+
+      fireEvent.click(document.getElementById(`delete-exception-${control.id}`)!)
+
+      expect(await screen.findByText(/exception to be deleted/i)).toBeInTheDocument()
+
+      expect(screen.getByText('Exception to be deleted:')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', {name: 'Cancel'}))
+
+      await waitFor(() => {
+        expect(screen.queryByText(/exception to be deleted/i)).not.toBeInTheDocument()
+      })
+    })
   })
 })

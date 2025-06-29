@@ -38,6 +38,7 @@ import {useScope as createI18nScope} from '@canvas/i18n'
 import LoadingIndicator from '@canvas/loading-indicator'
 import {RubricAssessmentTray} from '@canvas/rubrics/react/RubricAssessment'
 import {assignLocation} from '@canvas/util/globalUtils'
+import {clearAssetProcessorReports} from '@canvas/lti/react/AssetProcessorHelper'
 import {Button} from '@instructure/ui-buttons'
 import {Flex} from '@instructure/ui-flex'
 import {IconCheckSolid, IconEndSolid, IconRefreshSolid} from '@instructure/ui-icons'
@@ -60,6 +61,7 @@ import {
   multipleTypesDrafted,
   totalAllowedAttempts,
   activeTypeMeetsCriteria,
+  getPointsValue,
 } from '../helpers/SubmissionHelpers'
 import AttemptTab from './AttemptTab'
 import StudentViewContext from './Context'
@@ -535,6 +537,10 @@ const SubmissionManager = ({
   const handleSubmitConfirmation = () => {
     submitAssignment()
     setDraftStatus(null)
+    // We clear the asset processor reports from ENV when a new attempt is submitted
+    // to ensure that the reports are not shown for the new attempt.
+    // User needs to reload the page to see the new reports.
+    clearAssetProcessorReports()
   }
 
   const handleSubmitButton = async () => {
@@ -975,11 +981,11 @@ const SubmissionManager = ({
   }
 
   const rubricAssessmentData = (selfAssessment?.data ?? []).map(data => {
-    const points = data.points
+    const points = getPointsValue(data.points)
     return {
       ...data,
       criterionId: data.criterion_id,
-      points: typeof points === 'number' ? points : points.value,
+      points: points,
     }
   })
 
